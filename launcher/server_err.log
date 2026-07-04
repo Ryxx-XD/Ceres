@@ -1,0 +1,12 @@
+INFO:CeresBackend:[FLEET] Loaded fleet config from C:\Users\EJ Pondales\Desktop\AA - PROJECTS\CERES\CeresOS\backend\fleet_config.json
+C:\Users\EJ Pondales\Desktop\AA - PROJECTS\CERES\CeresOS\backend\app.py:1398: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("startup")
+INFO:     Started server process [13916]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:5002 (Press CTRL+C to quit)

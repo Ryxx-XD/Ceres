@@ -1,0 +1,423 @@
+{% extends "base.html" %}
+
+{% block title %}Data & Telemetry Logs{% endblock %}
+{% block page_title %}Data & Telemetry{% endblock %}
+{% block page_subtitle %}Historical Pond Water Quality Archives and Analytics{% endblock %}
+
+{% block content %}
+
+<!-- Sub-navigation Tabs -->
+<div class="report-tabs" style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; flex-shrink: 0;">
+    <a href="/data" class="cyber-btn {% if report_type == 'logs' %}active{% endif %}" style="text-decoration:none;">
+        <i class="fa-solid fa-list-check"></i> Telemetry Logs
+    </a>
+    <a href="/data/weekly" class="cyber-btn {% if report_type == 'weekly' %}active{% endif %}" style="text-decoration:none;">
+        <i class="fa-solid fa-calendar-week"></i> Weekly Report
+    </a>
+    <a href="/data/monthly" class="cyber-btn {% if report_type == 'monthly' %}active{% endif %}" style="text-decoration:none;">
+        <i class="fa-solid fa-calendar-days"></i> Monthly Report
+    </a>
+</div>
+
+{% if report_type == 'logs' %}
+<!-- Summary Stats Bar -->
+<div class="stats-bar">
+    <div class="stat-card blue">
+        <div class="stat-icon blue"><i class="fa-solid fa-droplet"></i></div>
+        <div class="stat-info">
+            <div class="stat-label">Avg Headspace NH₃</div>
+            <div class="stat-value blue">-- <span style="font-size:0.75rem;font-weight:500">ppm</span></div>
+        </div>
+    </div>
+    <div class="stat-card green">
+        <div class="stat-icon green"><i class="fa-solid fa-flask"></i></div>
+        <div class="stat-info">
+            <div class="stat-label">Average pH</div>
+            <div class="stat-value green">7.41</div>
+        </div>
+    </div>
+    <div class="stat-card amber">
+        <div class="stat-icon amber"><i class="fa-solid fa-biohazard"></i></div>
+        <div class="stat-info">
+            <div class="stat-label">Max Headspace NH₃</div>
+            <div class="stat-value amber">0.014 <span style="font-size:0.75rem;font-weight:500">mg/L</span></div>
+        </div>
+    </div>
+    <div class="stat-card green">
+        <div class="stat-icon green"><i class="fa-solid fa-temperature-half"></i></div>
+        <div class="stat-info">
+            <div class="stat-label">Mean Temperature</div>
+            <div class="stat-value">28.3 <span style="font-size:0.75rem;font-weight:500">°C</span></div>
+        </div>
+    </div>
+</div>
+
+<!-- Top Row: 3 Charts -->
+<div class="grid-container" style="flex: 1; min-height: 0; margin-bottom: 14px;">
+
+    <!-- Line chart: Live Real-Time Trends -->
+    <div class="col-lg-6 col-flex">
+        <div class="cyber-card flex-fill accent-blue">
+            <div class="card-title">
+                LIVE REAL-TIME TELEMETRY TRENDS
+                <div class="card-title-icon blue"></div>
+            </div>
+            <div class="chart-container">
+                <canvas id="telemetryChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bar chart: Parameter Snapshot -->
+    <div class="col-lg-3 col-flex">
+        <div class="cyber-card flex-fill accent-left">
+            <div class="card-title">
+                PARAMETER SNAPSHOT
+                <div class="card-title-icon"></div>
+            </div>
+            <div class="chart-container">
+                <canvas id="paramBarChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Doughnut: Status Distribution -->
+    <div class="col-lg-3 col-flex">
+        <div class="cyber-card flex-fill accent-warn">
+            <div class="card-title">
+                STATUS DISTRIBUTION (WITHIN PAST 24 HOURS)
+                <div class="card-title-icon warn"></div>
+            </div>
+            <div class="chart-container">
+                <canvas id="statusDoughnutChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Bottom Row: Table with Export Controls -->
+<div class="grid-container" style="height: 40%; min-height: 200px; max-height: 45%;">
+    <div class="col-lg-12 col-flex">
+        <div class="cyber-card flex-fill">
+            <div class="card-title" style="flex-shrink:0;">
+                HISTORICAL SAMPLING ARCHIVES
+                <div style="display:flex;gap:8px;">
+                    <a href="/api/export_csv" class="cyber-btn" style="font-size:0.78rem;padding:5px 11px;">
+                        <i class="fa-solid fa-file-csv"></i> Export CSV
+                    </a>
+                    <button class="cyber-btn" onclick="window.print()" style="font-size:0.78rem;padding:5px 11px;">
+                        <i class="fa-solid fa-print"></i> Print PDF
+                    </button>
+                </div>
+            </div>
+
+            <div class="cyber-table-container" style="flex:1;overflow-y:auto;min-height:0;">
+                <table class="cyber-table" id="historicalLogTable">
+                    <thead>
+                        <tr>
+                            <th>Log Time</th>
+                            <th>Water Temp (°C)</th>
+                            <th>Pond pH</th>
+                            <th>Dissolved O₂ (mg/L)</th>
+                            <th>Total Ammonia (mg/L)</th>
+                            <th>Un-ionized NH₃ (mg/L)</th>
+                            <th>Habitability (PHI)</th>
+                            <th>Status Rating</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>2026-06-13 14:45:10</td><td>28.4</td><td>7.45</td><td>5.6</td><td>0.25</td><td>0.012</td><td>76.2</td>
+                            <td><span class="status-badge optimal">OPTIMAL</span></td>
+                        </tr>
+                        <tr>
+                            <td>2026-06-13 14:30:10</td><td>28.5</td><td>7.40</td><td>5.8</td><td>0.24</td><td>0.011</td><td>77.5</td>
+                            <td><span class="status-badge optimal">OPTIMAL</span></td>
+                        </tr>
+                        <tr>
+                            <td>2026-06-13 14:15:10</td><td>28.6</td><td>7.52</td><td>5.4</td><td>0.26</td><td>0.014</td><td>74.8</td>
+                            <td><span class="status-badge optimal">OPTIMAL</span></td>
+                        </tr>
+                        <tr>
+                            <td>2026-06-13 14:00:10</td><td>28.3</td><td>7.38</td><td>5.9</td><td>0.23</td><td>0.010</td><td>78.1</td>
+                            <td><span class="status-badge optimal">OPTIMAL</span></td>
+                        </tr>
+                        <tr>
+                            <td>2026-06-13 13:45:10</td><td>28.1</td><td>7.35</td><td>6.1</td><td>0.22</td><td>0.009</td><td>79.4</td>
+                            <td><span class="status-badge optimal">OPTIMAL</span></td>
+                        </tr>
+                        <tr>
+                            <td>2026-06-13 13:30:10</td><td>28.0</td><td>7.32</td><td>6.2</td><td>0.21</td><td>0.008</td><td>80.2</td>
+                            <td><span class="status-badge optimal">OPTIMAL</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% elif report_type == 'weekly' %}
+<!-- Weekly Report View -->
+<div class="report-container weekly-report" style="display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1; padding-bottom: 20px;">
+    <!-- Header with controls -->
+    <div class="report-header-row" style="display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+        <div class="report-meta-info">
+            <h2 style="margin: 0; font-size: 1.25rem; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.5px;">Weekly Water Quality Report</h2>
+            <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 4px;">
+                Device Name: <strong style="color: var(--primary);" id="weeklyDeviceName">Loading...</strong> &nbsp;|&nbsp;
+                Device ID: <strong style="color: var(--accent-blue);" id="weeklyDeviceId">...</strong> &nbsp;|&nbsp; 
+                Generated &amp; Accessed: <span id="weeklyReportTime" style="font-family: var(--font-mono);">Loading...</span>
+            </div>
+        </div>
+        <div>
+            <button class="cyber-btn btn-primary" onclick="downloadPdfReport('weekly')" style="padding: 6px 12px; font-size: 0.78rem;">
+                <i class="fa-solid fa-file-pdf"></i> Download PDF Report
+            </button>
+        </div>
+    </div>
+
+    <!-- AI Assessment Card -->
+    <div class="cyber-card accent-blue" style="flex-shrink: 0; padding: 14px 18px;">
+        <div class="card-title" style="margin-bottom: 8px;">
+            <span><i class="fa-solid fa-brain" style="color:var(--accent-blue); margin-right:6px;"></i> AI POND CONDITIONS ASSESSMENT (NILE TILAPIA FOCUS)</span>
+            <div class="card-title-icon blue"></div>
+        </div>
+        <div id="weeklyAiAssessmentBlock">
+            <div style="text-align: center; padding: 15px; color: var(--text-muted); font-size: 0.8rem;">
+                <i class="fa-solid fa-circle-notch fa-spin"></i> Analyzing telemetry statistics...
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Grid -->
+    <div class="grid-container" style="flex: 1; min-height: 280px; grid-template-columns: repeat(12, 1fr) !important;">
+        <!-- 24-Hour Trend -->
+        <div class="col-lg-6 col-flex" style="grid-column: span 6;">
+            <div class="cyber-card flex-fill accent-blue">
+                <div class="card-title">
+                    24-HOUR DIURNAL TRENDS (LINEGRAPH)
+                    <div class="card-title-icon blue"></div>
+                </div>
+                <div class="chart-container" style="height: 220px;">
+                    <canvas id="weekly24hChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <!-- 7-Day Trend -->
+        <div class="col-lg-6 col-flex" style="grid-column: span 6;">
+            <div class="cyber-card flex-fill accent-left">
+                <div class="card-title">
+                    7-DAY HISTORICAL TRENDS (LINEGRAPH)
+                    <div class="card-title-icon"></div>
+                </div>
+                <div class="chart-container" style="height: 220px;">
+                    <canvas id="weekly7dChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid-container" style="flex: 1; min-height: 240px; grid-template-columns: repeat(12, 1fr) !important;">
+        <!-- Doughnut: Status Distribution -->
+        <div class="col-lg-8 col-flex" style="grid-column: span 8;">
+            <div class="cyber-card flex-fill accent-warn">
+                <div class="card-title">
+                    STATUS DISTRIBUTION (WITHIN PAST 24 HOURS)
+                    <div class="card-title-icon warn"></div>
+                </div>
+                <div class="chart-container" style="height: 180px;">
+                    <canvas id="weeklyStatusDoughnutChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <!-- circular PHI gauge -->
+        <div class="col-lg-4 col-flex" style="grid-column: span 4;">
+            <div class="cyber-card flex-fill accent-left" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 14px;">
+                <div class="card-title" style="width: 100%; margin-bottom: 8px;">
+                    WEEKLY POND HABITABILITY GAUGE (PHI)
+                    <div class="card-title-icon"></div>
+                </div>
+                <div style="position: relative; width: 110px; height: 110px; margin: 10px 0;">
+                    <svg class="progress-ring" width="110" height="110" style="transform: rotate(-90deg);">
+                        <circle class="progress-ring-bg" stroke="var(--border-color)" stroke-width="8" fill="transparent" r="45" cx="55" cy="55"/>
+                        <circle class="progress-ring-fill" id="weeklyPhiCircle" stroke="var(--primary)" stroke-width="8" fill="transparent" r="45" cx="55" cy="55" stroke-dasharray="282.7" stroke-dashoffset="282.7" style="transition: stroke-dashoffset 0.35s;"/>
+                    </svg>
+                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: var(--font-mono);">
+                        <span id="weeklyPhiVal" style="font-size: 1.6rem; font-weight: 700; color: var(--text-primary);">--</span>
+                        <span style="font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase;">Score</span>
+                    </div>
+                </div>
+                <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary); text-align: center; margin-top: 4px;" id="weeklyPhiVerdict">
+                    --
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% elif report_type == 'monthly' %}
+<!-- Monthly Report View -->
+<div class="report-container monthly-report" style="display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1; padding-bottom: 20px;">
+    <!-- Header with controls -->
+    <div class="report-header-row" style="display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+        <div class="report-meta-info">
+            <h2 style="margin: 0; font-size: 1.25rem; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.5px;">Monthly Water Quality Report</h2>
+            <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 4px;">
+                Device Name: <strong style="color: var(--primary);" id="monthlyDeviceName">Loading...</strong> &nbsp;|&nbsp;
+                Device ID: <strong style="color: var(--accent-blue);" id="monthlyDeviceId">...</strong> &nbsp;|&nbsp; 
+                Generated &amp; Accessed: <span id="monthlyReportTime" style="font-family: var(--font-mono);">Loading...</span>
+            </div>
+        </div>
+        <div>
+            <button class="cyber-btn btn-primary" onclick="downloadPdfReport('monthly')" style="padding: 6px 12px; font-size: 0.78rem;">
+                <i class="fa-solid fa-file-pdf"></i> Download PDF Report
+            </button>
+        </div>
+    </div>
+
+    <!-- AI Assessment Card -->
+    <div class="cyber-card accent-blue" style="flex-shrink: 0; padding: 14px 18px;">
+        <div class="card-title" style="margin-bottom: 8px;">
+            <span><i class="fa-solid fa-brain" style="color:var(--accent-blue); margin-right:6px;"></i> AI POND CONDITIONS ASSESSMENT (NILE TILAPIA FOCUS)</span>
+            <div class="card-title-icon blue"></div>
+        </div>
+        <div id="monthlyAiAssessmentBlock">
+            <div style="text-align: center; padding: 15px; color: var(--text-muted); font-size: 0.8rem;">
+                <i class="fa-solid fa-circle-notch fa-spin"></i> Analyzing telemetry statistics...
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Grid -->
+    <div class="grid-container" style="flex: 1; min-height: 280px; grid-template-columns: repeat(12, 1fr) !important;">
+        <!-- 30-Day Trend -->
+        <div class="col-lg-8 col-flex" style="grid-column: span 8;">
+            <div class="cyber-card flex-fill accent-blue">
+                <div class="card-title">
+                    30-DAY WATER QUALITY TRENDS (LINEGRAPH)
+                    <div class="card-title-icon blue"></div>
+                </div>
+                <div class="chart-container" style="height: 220px;">
+                    <canvas id="monthly30dChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <!-- circular PHI gauge -->
+        <div class="col-lg-4 col-flex" style="grid-column: span 4;">
+            <div class="cyber-card flex-fill accent-left" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 14px;">
+                <div class="card-title" style="width: 100%; margin-bottom: 8px;">
+                    MONTHLY POND HABITABILITY INDEX (PHI)
+                    <div class="card-title-icon"></div>
+                </div>
+                <div style="position: relative; width: 110px; height: 110px; margin: 10px 0;">
+                    <svg class="progress-ring" width="110" height="110" style="transform: rotate(-90deg);">
+                        <circle class="progress-ring-bg" stroke="var(--border-color)" stroke-width="8" fill="transparent" r="45" cx="55" cy="55"/>
+                        <circle class="progress-ring-fill" id="monthlyPhiCircle" stroke="var(--primary)" stroke-width="8" fill="transparent" r="45" cx="55" cy="55" stroke-dasharray="282.7" stroke-dashoffset="282.7" style="transition: stroke-dashoffset 0.35s;"/>
+                    </svg>
+                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: var(--font-mono);">
+                        <span id="monthlyPhiVal" style="font-size: 1.6rem; font-weight: 700; color: var(--text-primary);">--</span>
+                        <span style="font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase;">Score</span>
+                    </div>
+                </div>
+                <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary); text-align: center; margin-top: 4px;" id="monthlyPhiVerdict">
+                    --
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid-container" style="flex: 1; min-height: 240px; grid-template-columns: repeat(12, 1fr) !important;">
+        <!-- Doughnut: Status Distribution -->
+        <div class="col-lg-12 col-flex" style="grid-column: span 12;">
+            <div class="cyber-card flex-fill accent-warn">
+                <div class="card-title">
+                    STATUS DISTRIBUTION (WITHIN PAST 30 DAYS)
+                    <div class="card-title-icon warn"></div>
+                </div>
+                <div class="chart-container" style="height: 180px;">
+                    <canvas id="monthlyStatusDoughnutChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    setTimeout(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        let showParam = urlParams.get('param');
+        if (!showParam || showParam === 'all') return;
+
+        // Hide navigation tabs
+        const tabs = document.querySelector('.report-tabs');
+        if (tabs) tabs.style.display = 'none';
+
+        // Hide irrelevant stat cards
+        const cards = document.querySelectorAll('.stat-card');
+        cards.forEach(c => {
+            const text = c.innerText.toLowerCase();
+            let keep = false;
+            if (showParam === 'hs_nh3' || showParam === 'nh3') {
+                if (text.includes('nh₃') || text.includes('nh3')) keep = true;
+            } else if (showParam === 'ph') {
+                if (text.includes('ph')) keep = true;
+            } else if (showParam === 'temp') {
+                if (text.includes('temp')) keep = true;
+            } else if (showParam === 'do') {
+                if (text.includes('do') || text.includes('dissolved')) keep = true;
+            } else if (showParam === 'phi' || showParam === 'survival') {
+                keep = true;
+            }
+            if (!keep) c.style.display = 'none';
+        });
+
+        // Hide parameter bar chart and doughnut chart containers
+        const pbc = document.getElementById('paramBarChart');
+        if (pbc && pbc.parentElement.parentElement.parentElement) pbc.parentElement.parentElement.parentElement.style.display = 'none';
+        
+        const sdc = document.getElementById('statusDoughnutChart');
+        if (sdc && sdc.parentElement.parentElement.parentElement) sdc.parentElement.parentElement.parentElement.style.display = 'none';
+
+        // Expand telemetry line chart to full width
+        const tc = document.getElementById('telemetryChart');
+        if (tc && tc.parentElement.parentElement.parentElement) tc.parentElement.parentElement.parentElement.className = 'col-lg-12 col-flex';
+
+        // Hide the data table at the bottom
+        const tbl = document.querySelector('.grid-container:last-child');
+        if (tbl) tbl.style.display = 'none';
+
+        if (window.Chart) {
+            for (let key in Chart.instances) {
+                let chart = Chart.instances[key];
+                if (chart.canvas.id === 'telemetryChart') continue; // Handled in main.js
+                
+                if (chart.config.type === 'line') {
+                    chart.data.datasets.forEach(ds => {
+                        const lbl = ds.label ? ds.label.toLowerCase() : '';
+                        let keep = false;
+                        if (showParam === 'hs_nh3' || showParam === 'nh3') {
+                            if (lbl.includes('nh₃') || lbl.includes('nh3')) keep = true;
+                        } else if (showParam === 'ph') {
+                            if (lbl.includes('ph')) keep = true;
+                        } else if (showParam === 'temp') {
+                            if (lbl.includes('temp')) keep = true;
+                        } else if (showParam === 'do') {
+                            if (lbl.includes('do') || lbl.includes('dissolved')) keep = true;
+                        } else if (showParam === 'phi' || showParam === 'survival') {
+                            keep = true;
+                        }
+                        if (!keep) ds.hidden = true;
+                    });
+                    chart.update();
+                }
+            }
+        }
+    }, 150);
+});
+</script>
+
+{% endblock %}

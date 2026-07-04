@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Calibrate Devices | Offsets Override{% endblock %}
+{% block page_title %}Sensor Calibration{% endblock %}
+{% block page_subtitle %}pH Buffer Coefficients, Compass Alignment & IMU Reference Vectors{% endblock %}
+
+{% block content %}
+<div class="grid-container">
+    <!-- pH Calibration -->
+    <div class="col-lg-6">
+        <div class="cyber-card">
+            <div class="card-title">
+                pH-4502C BUFFER CALIBRATION
+                <span class="status-dot"></span>
+            </div>
+            
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px;">
+                Enter raw analog readings captured from your buffer standards to calculate optimal pH regression slope coefficients.
+            </p>
+            
+            <div class="metric-row">
+                <span class="metric-label">Buffer pH 7.00 Raw Reading</span>
+                <input type="number" value="2048" class="form-input">
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">Buffer pH 4.01 Raw Reading</span>
+                <input type="number" value="3120" class="form-input">
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">Current Offset Parameter</span>
+                <span class="metric-value" style="font-size: 1.1rem; color: var(--color-warning);">21.34</span>
+            </div>
+            
+            <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
+                <button class="cyber-btn">Flash pH Offsets</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- IMU & Compass Alignment -->
+    <div class="col-lg-6">
+        <div class="cyber-card">
+            <div class="card-title">
+                GNC INERTIAL & COMPASS ALIGNMENT
+                <span class="status-dot"></span>
+            </div>
+            
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px;">
+                Calibrate gyroscope pitch/roll, accelerometer gravity reference vectors, and region-specific magnetic declinations.
+            </p>
+            
+            <div class="metric-row">
+                <span class="metric-label">Magnetic Declination (Degrees E)</span>
+                <input type="number" step="0.01" value="1.25" class="form-input">
+            </div>
+            
+            <div style="margin-top: 25px; display: flex; gap: 15px;">
+                <button class="cyber-btn" style="flex: 1;"><i class="fa-solid fa-compass" style="margin-right: 8px;"></i>Zero Compass Heading</button>
+                <button class="cyber-btn" style="flex: 1;"><i class="fa-solid fa-arrows-spin" style="margin-right: 8px;"></i>Calibrate Accel / Gyro</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

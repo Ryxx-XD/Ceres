@@ -1,0 +1,1053 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | Telemetry & Guidance{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block page_subtitle %}Live Pond Telemetry, Navigation & GNC Control{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* ── Dashboard: map fills entire content area ──────────────────── */
+    .dashboard-page { padding: 0 !important; overflow: hidden !important; }
+    .dashboard-container {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+    }
+    .dashboard-map-full {
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+    }
+
+    /* ── Glass HUD base ──────────────────────────────────────────────── */
+    .map-hud {
+        position: absolute;
+        z-index: 500;
+        background: rgba(15, 23, 42, 0.78);
+        backdrop-filter: blur(14px) saturate(1.4);
+        -webkit-backdrop-filter: blur(14px) saturate(1.4);
+        border: 1px solid rgba(255,255,255,0.09);
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.07);
+        font-family: var(--font-sans);
+        color: var(--text-primary);
+        transition: opacity 0.3s ease, transform 0.3s ease;
+        pointer-events: all;
+    }
+    .map-hud-tl  { top: 12px; left: 12px; }
+    .map-hud-tr  { top: 12px; right: 12px; }
+    .map-hud-bl  { bottom: 12px; left: 12px; }
+    .map-hud-bc  { bottom: 12px; left: 50%; transform: translateX(-50%); }
+    .map-hud-left { top: 50%; left: 12px; transform: translateY(-50%); }
+
+    .map-hud.ui-hidden { opacity: 0; pointer-events: none; }
+
+    /* ── HUD Section Label ───────────────────────────────────────────── */
+    .hud-label {
+        font-size: 0.52rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: var(--primary);
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        opacity: 0.85;
+        padding: 8px 12px 4px;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .hud-label::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: linear-gradient(90deg, rgba(16,185,129,0.3), transparent);
+    }
+
+    /* ── Top-left HUD: Status strip ─────────────────────────────────── */
+    #hudStatus {
+        width: 100%;
+        flex-shrink: 0;
+    }
+    .hud-status-body {
+        padding: 8px 12px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+    }
+    .hud-species-row {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        background: linear-gradient(135deg, rgba(16,185,129,0.08), rgba(56,189,248,0.04));
+        border: 1px solid rgba(16,185,129,0.15);
+        border-radius: 8px;
+        padding: 6px 10px;
+        position: relative;
+        overflow: hidden;
+    }
+    .hud-species-row::before {
+        content: '';
+        position: absolute;
+        left: 0; top: 0; bottom: 0; width: 3px;
+        background: linear-gradient(180deg, var(--primary), var(--accent-blue));
+        border-radius: 4px 0 0 4px;
+    }
+    .hud-device-row {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        background: rgba(0,0,0,0.2);
+        border: 1px solid rgba(255,255,255,0.07);
+        border-radius: 7px;
+        padding: 4px 9px;
+    }
+    .hud-device-row select {
+        flex: 1;
+        font-size: 0.8rem;
+        background: transparent;
+        border: none;
+        color: var(--text-primary);
+        outline: none;
+        font-family: var(--font-sans);
+        padding: 2px 4px;
+        max-width: 110px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* ── Left HUD: Water Quality Arc Gauges ─────────────────────────── */
+    #hudGauges {
+        width: 100%;
+        max-height: none;
+        overflow-y: visible;
+    }
+    #hudGauges::-webkit-scrollbar { width: 3px; }
+    #hudGauges::-webkit-scrollbar-thumb { background: rgba(16,185,129,0.2); border-radius: 2px; }
+
+    .hud-gauges-body {
+        padding: 10px 10px 8px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    /* Arc Gauge Component */
+    .arc-gauge {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        background: rgba(0,0,0,0.18);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 10px;
+        padding: 9px 6px 7px;
+        transition: border-color 0.2s;
+        cursor: default;
+        position: relative;
+        overflow: hidden;
+    }
+    .arc-gauge::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse at 50% 0%, rgba(16,185,129,0.06), transparent 70%);
+        pointer-events: none;
+    }
+    .arc-gauge:hover { border-color: rgba(16,185,129,0.3); }
+    .arc-gauge-title {
+        font-size: 0.46rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        color: var(--text-muted);
+        text-align: center;
+        line-height: 1.2;
+    }
+    .arc-gauge-svg { filter: drop-shadow(0 0 6px rgba(16,185,129,0.2)); }
+    .arc-gauge-val {
+        font-size: 1rem;
+        font-weight: 700;
+        line-height: 1;
+        text-align: center;
+    }
+    .arc-gauge-unit {
+        font-size: 0.42rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-align: center;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .arc-gauge-status {
+        font-size: 0.42rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        padding: 2px 6px;
+        border-radius: 3px;
+        background: rgba(16,185,129,0.15);
+        color: #34d399;
+        transition: background 0.2s, color 0.2s;
+    }
+    .arc-gauge-status.warn   { background: rgba(245,158,11,0.15); color: #fbbf24; }
+    .arc-gauge-status.deadly { background: rgba(239,68,68,0.15);  color: #f87171; }
+
+    /* PHI health banner */
+    .hud-phi-banner {
+        margin: 0 10px 6px;
+        padding: 7px 10px;
+        background: rgba(0,0,0,0.22);
+        border: 1px solid rgba(255,255,255,0.07);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .hud-phi-ring { position: relative; width: 38px; height: 38px; flex-shrink: 0; }
+    .hud-phi-ring svg { width: 38px; height: 38px; }
+    .hud-phi-ring-label {
+        position: absolute; inset: 0;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        line-height: 1;
+    }
+    .hud-phi-ring-label span:first-child { font-size: 0.72rem; font-weight: 800; }
+    .hud-phi-ring-label span:last-child  { font-size: 0.36rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
+    .hud-phi-info { flex: 1; min-width: 0; }
+    .hud-phi-info-label { font-size: 0.44rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); }
+    .hud-phi-info-status { font-size: 0.82rem; font-weight: 800; line-height: 1.2; }
+    .hud-phi-info-sub { font-size: 0.52rem; color: var(--text-muted); margin-top: 1px; }
+    .hud-phi-bar-wrap { height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; margin-top: 3px; }
+    .hud-phi-bar-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease, background 0.4s ease; }
+
+    /* Accordion diagnostics */
+    .hud-accordion {
+        margin: 0 10px 4px;
+    }
+    .hud-accordion-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 4px 8px;
+        background: rgba(0,0,0,0.15);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 6px;
+        cursor: pointer;
+        user-select: none;
+        transition: background 0.15s;
+        font-size: 0.48rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--text-muted);
+    }
+    .hud-accordion-header:hover { background: rgba(16,185,129,0.07); }
+    .hud-accordion-header .acc-chevron { font-size: 0.5rem; transition: transform 0.2s; }
+    .hud-accordion-header.collapsed .acc-chevron { transform: rotate(180deg); }
+    .hud-accordion-body {
+        padding: 4px 0 2px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+    .hud-accordion-body.hidden { display: none; }
+
+    /* Extra diagnostic mini-rows */
+    .hud-diag-rows { padding: 0; display: flex; flex-direction: column; gap: 3px; }
+    .hud-diag-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.66rem;
+        padding: 3px 7px;
+        background: rgba(0,0,0,0.13);
+        border: 1px solid rgba(255,255,255,0.04);
+        border-radius: 5px;
+    }
+    .hud-diag-row .dr-label {
+        color: var(--text-muted);
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .hud-diag-row .dr-val {
+        font-weight: 700;
+        color: var(--text-primary);
+        font-size: 0.68rem;
+        font-family: var(--font-sans);
+    }
+    .trend-arrow { font-size: 0.8rem; line-height: 1; }
+
+    /* ── Bottom-left HUD: AI Diagnostics ─────────────────────────────── */
+    #hudDiag {
+        width: 100%;
+        max-width: none;
+        flex-shrink: 0;
+        /* Prevent growing beyond viewport — body scrolls internally */
+        max-height: 280px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    .hud-diag-body {
+        padding: 8px 12px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(16,185,129,0.2) transparent;
+    }
+    .hud-diag-body::-webkit-scrollbar { width: 3px; }
+    .hud-diag-body::-webkit-scrollbar-thumb { background: rgba(16,185,129,0.2); border-radius: 2px; }
+    .hud-toxicity {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        background: rgba(0,0,0,0.18);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 6px;
+        padding: 5px 10px;
+    }
+    .hud-ai-block {
+        background: rgba(0,0,0,0.18);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 8px;
+        padding: 8px 10px;
+        display: flex;
+        gap: 9px;
+        align-items: flex-start;
+    }
+    .hud-alert-log {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+    .hud-alert-item {
+        font-size: 0.66rem;
+        padding: 2px 7px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid rgba(255,255,255,0.06);
+    }
+    .hud-alert-item.warn { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.2); color: #fbbf24; }
+    .hud-alert-item.deadly { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.2); color: #f87171; }
+    .hud-actions-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+    .hud-actions-list li {
+        font-size: 0.7rem;
+        color: var(--text-primary);
+        padding: 1px 0 1px 7px;
+        border-left: 2px solid transparent;
+        transition: border-color 0.15s;
+        line-height: 1.4;
+        display: flex; align-items: baseline; gap: 5px;
+    }
+    .hud-actions-list li::before { content: '›'; color: var(--primary); font-weight: 700; font-size: 0.9rem; flex-shrink: 0; }
+    .hud-actions-list li:hover { border-left-color: var(--primary); }
+
+    /* ── Bottom-center HUD: Habitability summary ─────────────────────── */
+    #hudMetrics {
+        display: flex;
+        gap: 0;
+        white-space: nowrap;
+        max-width: 92vw;
+        overflow: hidden;
+    }
+    .hud-metric-pill {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 18px;
+        border-right: 1px solid rgba(255,255,255,0.07);
+        transition: background 0.15s, transform 0.1s;
+        cursor: pointer;
+    }
+    .hud-metric-pill:last-child { border-right: none; }
+    .hud-metric-pill:hover { background: rgba(255,255,255,0.08); transform: translateY(-1px); }
+    .hud-metric-pill:active { transform: translateY(1px); }
+    .hud-metric-pill .mp-icon { font-size: 0.95rem; width: 18px; text-align: center; }
+    .hud-metric-pill .mp-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); }
+    .hud-metric-pill .mp-val { font-size: 1.15rem; font-weight: 700; line-height: 1; }
+    .hud-metric-pill .mp-unit { font-size: 0.65rem; color: var(--text-muted); font-weight: 500; }
+
+    /* ── Map controls (existing top-right area enhanced) ─────────────── */
+    .dashboard-map-controls {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        z-index: 500;
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+        flex-wrap: nowrap;
+    }
+    .control-block {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 10px;
+        border-radius: 8px;
+    }
+    .glass-panel {
+        background: rgba(15, 23, 42, 0.78);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255,255,255,0.09);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+        border-radius: 8px;
+    }
+
+    /* ── Colormap legend ─────────────────────────────────────────────── */
+    #colormapLegend {
+        display: flex;
+        flex-direction: row;
+        align-items: stretch;
+        gap: 6px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        transition: opacity 0.3s ease;
+    }
+    #colormapLegend .cml-bar-col {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+    }
+    #colormapLegend .cml-ticks-col {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        font-size: 0.44rem;
+        font-weight: 700;
+        font-family: var(--font-mono);
+        color: var(--text-muted);
+        text-align: left;
+        padding: 2px 0;
+    }
+
+    /* Heatmap slider thumb */
+    #heatmapOpacitySlider::-webkit-slider-thumb {
+        -webkit-appearance: none; appearance: none;
+        width: 12px; height: 12px; border-radius: 50%;
+        background: var(--primary); cursor: pointer;
+        box-shadow: 0 0 4px var(--primary);
+    }
+    #heatmapOpacitySlider::-moz-range-thumb {
+        width: 12px; height: 12px; border-radius: 50%;
+        background: var(--primary); cursor: pointer;
+        box-shadow: 0 0 4px var(--primary); border: none;
+    }
+
+    /* Minimize state */
+    .dashboard-container.ui-minimized .map-hud { opacity: 0; pointer-events: none; }
+    .dashboard-container.ui-minimized .dashboard-map-controls .map-hud { opacity: 1; pointer-events: all; }
+
+    /* GNC Navigation panel inside left gauge HUD */
+    .hud-gnc-section {
+        padding: 2px 10px 8px;
+        border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .gnc-mini-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 4px;
+        margin-top: 4px;
+    }
+    .gnc-mini-cell {
+        background: rgba(0,0,0,0.15);
+        border: 1px solid rgba(255,255,255,0.05);
+        border-radius: 5px;
+        padding: 3px 6px;
+        font-size: 0.62rem;
+    }
+    .gnc-mini-cell .gcl { color: var(--text-muted); font-size: 0.5rem; font-weight: 700; text-transform: uppercase; }
+    .gnc-mini-cell .gcv { color: var(--text-primary); font-weight: 700; font-size: 0.68rem; font-family: var(--font-sans); }
+    .gnc-sensor-chip {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 4px;
+        padding: 3px 6px;
+        background: rgba(0,0,0,0.15);
+        border: 1px solid rgba(255,255,255,0.05);
+        border-radius: 5px;
+        font-size: 0.62rem;
+        transition: border-color 0.2s, background 0.2s;
+    }
+    .gnc-sensor-chip.warn { border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.07); }
+    .gnc-sensor-chip.deadly { border-color: rgba(239,68,68,0.4); background: rgba(239,68,68,0.1); animation: flash-red 1.5s infinite; }
+    .gnc-sensor-chip .chip-label { color: var(--text-muted); font-weight: 700; font-size: 0.52rem; text-transform: uppercase; }
+    .gnc-sensor-chip .chip-val { color: var(--text-primary); font-weight: 700; font-family: var(--font-sans); }
+
+    /* Battery bar */
+    .batt-bar-wrap { height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; margin-top: 3px; }
+    .batt-bar-fill { height: 100%; border-radius: 2px; background: var(--primary); transition: width 0.5s ease; }
+
+    /* Coverage bar */
+    .cov-bar-wrap { height: 3px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
+    .cov-bar-fill { height: 100%; border-radius: 2px; background: var(--accent-blue); transition: width 0.5s ease; }
+
+    /* Compass */
+    .gnc-compass-wrap { position: relative; width: 44px; height: 44px; flex-shrink: 0; }
+    .gnc-compass-wrap svg { width: 44px; height: 44px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<script>
+    document.querySelector('.main-wrapper').classList.add('dashboard-page');
+</script>
+
+<div class="dashboard-container" id="dashboardContainer">
+
+    <!-- ══ FULL MAP ═══════════════════════════════════════════════════════ -->
+    <div id="leaflet-map" data-mode="heatmap" class="dashboard-map-full"></div>
+
+    <!-- ══ LEFT SIDEBAR PANEL (Consolidated overlays) ═════════════════ -->
+    <div class="left-hud-sidebar" style="position: absolute; left: 12px; top: 12px; bottom: 220px; width: 370px; display: flex; flex-direction: column; gap: 6px; z-index: 500; pointer-events: none; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: rgba(16,185,129,0.2) transparent;">
+
+        <!-- ══ HUD: TOP-LEFT — Vessel Status ════════════════════════════════ -->
+        <div class="map-hud" id="hudStatus" style="width: 100%; pointer-events: all; flex-shrink: 0;">
+            <div class="hud-label">
+                <i class="fa-solid fa-circle-dot" style="font-size:0.5rem;"></i>System Status
+            </div>
+            <div class="hud-status-body">
+                <div class="hud-species-row">
+                    <svg viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg" style="width:38px;height:20px;flex-shrink:0;">
+                        <path d="M10,30 C30,10 70,15 85,30 C75,32 70,40 68,48 C55,42 35,42 20,38 C15,35 12,32 10,30 Z" fill="var(--primary)" opacity="0.85"/>
+                        <path d="M85,30 C92,20 95,15 98,12 C96,22 96,38 98,48 C95,45 92,40 85,30 Z" fill="var(--primary-hover)"/>
+                        <circle cx="25" cy="26" r="3.5" fill="#ffffff"/>
+                        <circle cx="25" cy="26" r="1.5" fill="#0f172a"/>
+                    </svg>
+                    <div style="flex:1;">
+                        <div style="font-size:0.5rem;text-transform:uppercase;color:var(--text-muted);font-weight:700;letter-spacing:0.5px;">Active Species</div>
+                        <div style="font-size:0.82rem;font-weight:700;color:var(--text-primary);line-height:1.2;">Nile Tilapia</div>
+                    </div>
+                    <div style="text-align:right;flex-shrink:0;display:flex;flex-direction:column;gap:2px;align-items:flex-end;">
+                        <div style="font-size:0.5rem;text-transform:uppercase;color:var(--text-muted);font-weight:700;">Status</div>
+                        <span class="status-badge optimal" id="overallStatusBadge" style="font-size:0.6rem;padding:2px 7px;">OPTIMAL</span>
+                    </div>
+                </div>
+                <div class="hud-device-row">
+                    <div style="width:6px;height:6px;border-radius:50%;background:var(--primary);flex-shrink:0;box-shadow:0 0 4px var(--primary);" id="vesselOnlineDot"></div>
+                    <i class="fa-solid fa-satellite-dish" style="color:var(--primary);font-size:0.75rem;flex-shrink:0;"></i>
+                    <span style="font-size:0.6rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">Device:</span>
+                    <select id="vesselSelectDropdown" style="flex:1;font-size:0.78rem;background:transparent;border:none;color:var(--text-primary);outline:none;font-family:var(--font-sans);padding:2px 4px;"><!-- Populated --></select>
+                    <span class="status-badge optimal" id="systemAiStatusBadge" style="font-size:0.55rem;padding:2px 6px;white-space:nowrap;">AI OK</span>
+                </div>
+                <!-- Mode / Speed strip -->
+                <div style="display:flex;gap:6px;">
+                    <div style="flex:1;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:4px 8px;">
+                        <div style="font-size:0.48rem;font-weight:700;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px;">Mode</div>
+                        <div style="font-size:0.8rem;font-weight:700;color:var(--primary);" id="vesselMode">STANDBY</div>
+                    </div>
+                    <div style="flex:1;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:4px 8px;">
+                        <div style="font-size:0.48rem;font-weight:700;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px;">Speed</div>
+                        <div style="font-size:0.8rem;font-weight:700;color:var(--text-primary);" id="navSpeed">0.00 m/s</div>
+                    </div>
+                    <div style="flex:1;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:4px 8px;">
+                        <div style="font-size:0.48rem;font-weight:700;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px;">Battery</div>
+                        <div style="font-size:0.8rem;font-weight:700;display:flex;align-items:center;gap:4px;">
+                            <i class="fa-solid fa-battery-three-quarters" id="gncBattIcon" style="color:var(--primary);font-size:0.75rem;"></i>
+                            <span id="gncBattVal" style="color:var(--text-primary);">--</span>
+                        </div>
+                        <div class="batt-bar-wrap" style="margin-top:2px;"><div class="batt-bar-fill" id="gncBattBar" style="width:80%;"></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ HUD: MIDDLE — Water Quality Arc Gauges ════════════════════ -->
+        <div class="map-hud" id="hudGauges" style="width: 100%; pointer-events: all; flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden;">
+            <div class="hud-label" style="flex-shrink: 0;">
+                <i class="fa-solid fa-gauge-high" style="font-size:0.5rem;"></i>Water Quality
+            </div>
+            <div style="flex: 1; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 4px; padding-bottom: 8px;">
+
+        <div class="hud-gauges-body">
+
+            <!-- HS NH3 Gauge -->
+            <div class="arc-gauge" id="gaugeCardHS">
+                <div class="arc-gauge-title">Headspace<br>Ammonia</div>
+                <div style="position:relative;width:95px;height:95px;">
+                    <svg class="arc-gauge-svg" viewBox="0 0 80 80" style="width:95px;height:95px;">
+                        <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="7"/>
+                        <circle cx="40" cy="40" r="32" fill="none" stroke="#10b981" stroke-width="7"
+                            stroke-linecap="round" stroke-dasharray="201.1" stroke-dashoffset="80"
+                            style="transform:rotate(-90deg);transform-origin:40px 40px;transition:stroke-dashoffset 0.6s ease,stroke 0.4s ease;"
+                            id="gaugeArcHS"/>
+                    </svg>
+                    <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                        <span class="arc-gauge-val" id="gaugeValHS" style="color:#10b981;">--</span>
+                        <span class="arc-gauge-unit">ppm</span>
+                    </div>
+                </div>
+                <span class="arc-gauge-status" id="gaugeStatHS">OPTIMAL</span>
+            </div>
+
+            <!-- pH Gauge -->
+            <div class="arc-gauge" id="gaugeCardPH">
+                <div class="arc-gauge-title">pH Level</div>
+                <div style="position:relative;width:95px;height:95px;">
+                    <svg class="arc-gauge-svg" viewBox="0 0 80 80" style="width:95px;height:95px;">
+                        <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="7"/>
+                        <circle cx="40" cy="40" r="32" fill="none" stroke="#38bdf8" stroke-width="7"
+                            stroke-linecap="round" stroke-dasharray="201.1" stroke-dashoffset="100"
+                            style="transform:rotate(-90deg);transform-origin:40px 40px;transition:stroke-dashoffset 0.6s ease,stroke 0.4s ease;"
+                            id="gaugeArcPH"/>
+                    </svg>
+                    <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                        <span class="arc-gauge-val" id="gaugeValPH" style="color:#38bdf8;">--</span>
+                        <span class="arc-gauge-unit">pH</span>
+                    </div>
+                </div>
+                <span class="arc-gauge-status" id="gaugeStatPH">OPTIMAL</span>
+            </div>
+
+            <!-- Temp Gauge -->
+            <div class="arc-gauge" id="gaugeCardTemp">
+                <div class="arc-gauge-title">Temperature</div>
+                <div style="position:relative;width:95px;height:95px;">
+                    <svg class="arc-gauge-svg" viewBox="0 0 80 80" style="width:95px;height:95px;">
+                        <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="7"/>
+                        <circle cx="40" cy="40" r="32" fill="none" stroke="#f59e0b" stroke-width="7"
+                            stroke-linecap="round" stroke-dasharray="201.1" stroke-dashoffset="70"
+                            style="transform:rotate(-90deg);transform-origin:40px 40px;transition:stroke-dashoffset 0.6s ease,stroke 0.4s ease;"
+                            id="gaugeArcTemp"/>
+                    </svg>
+                    <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                        <span class="arc-gauge-val" id="gaugeValTemp" style="color:#f59e0b;">--</span>
+                        <span class="arc-gauge-unit">°C</span>
+                    </div>
+                </div>
+                <span class="arc-gauge-status" id="gaugeStatTemp">OPTIMAL</span>
+            </div>
+
+            <!-- NH₃ Gauge -->
+            <div class="arc-gauge" id="gaugeCardNH3">
+                <div class="arc-gauge-title">Ammonia<br>NH₃</div>
+                <div style="position:relative;width:95px;height:95px;">
+                    <svg class="arc-gauge-svg" viewBox="0 0 80 80" style="width:95px;height:95px;">
+                        <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="7"/>
+                        <circle cx="40" cy="40" r="32" fill="none" stroke="#10b981" stroke-width="7"
+                            stroke-linecap="round" stroke-dasharray="201.1" stroke-dashoffset="195"
+                            style="transform:rotate(-90deg);transform-origin:40px 40px;transition:stroke-dashoffset 0.6s ease,stroke 0.4s ease;"
+                            id="gaugeArcNH3"/>
+                    </svg>
+                    <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                        <span class="arc-gauge-val" id="gaugeValNH3" style="color:#10b981;font-size:0.75rem;">--</span>
+                        <span class="arc-gauge-unit">mg/L</span>
+                    </div>
+                </div>
+                <span class="arc-gauge-status" id="gaugeStatNH3">SAFE</span>
+            </div>
+
+        </div>
+
+        <!-- PHI Health Banner -->
+        <div class="hud-phi-banner">
+            <div class="hud-phi-ring">
+                <svg viewBox="0 0 80 80">
+                    <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="8"/>
+                    <circle cx="40" cy="40" r="34" fill="none" stroke="#10b981" stroke-width="8"
+                        stroke-linecap="round" stroke-dasharray="213.6" stroke-dashoffset="54"
+                        style="transform:rotate(-90deg);transform-origin:40px 40px;transition:stroke-dashoffset 0.6s ease,stroke 0.4s;"
+                        id="phiBannerArc"/>
+                </svg>
+                <div class="hud-phi-ring-label">
+                    <span id="phiBannerVal" style="color:#10b981;">--</span>
+                    <span>PHI</span>
+                </div>
+            </div>
+            <div class="hud-phi-info">
+                <div class="hud-phi-info-label">Pond Health Index</div>
+                <div class="hud-phi-info-status" id="phiBannerStatus" style="color:#10b981;">OPTIMAL</div>
+                <div class="hud-phi-info-sub" id="phiBannerSub">All parameters nominal</div>
+                <div class="hud-phi-bar-wrap">
+                    <div class="hud-phi-bar-fill" id="phiBannerBar" style="width:75%;background:#10b981;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Accordion: Water Trends ───────────────────────────────── -->
+        <div class="hud-accordion">
+            <div class="hud-accordion-header" id="accTrendsHeader">
+                <span><i class="fa-solid fa-chart-line" style="color:var(--primary);margin-right:4px;"></i>Water Trends</span>
+                <i class="fa-solid fa-chevron-up acc-chevron" id="accTrendsChevron"></i>
+            </div>
+            <div class="hud-accordion-body" id="accTrendsBody">
+                <div class="hud-diag-rows" style="padding:0;">
+                    <div class="hud-diag-row">
+                        <span class="dr-label"><i class="fa-solid fa-cloud-meatball" style="color:var(--accent-blue);font-size:0.6rem;"></i>HS Trend</span>
+                        <span class="dr-val" id="diagHsNh3Trend">--</span>
+                    </div>
+                    <div class="hud-diag-row">
+                        <span class="dr-label"><i class="fa-solid fa-arrow-trend-up" style="color:var(--accent-blue);font-size:0.6rem;"></i>HS Rate/hr</span>
+                        <span class="dr-val" id="diagHsNh3Rate">--</span>
+                    </div>
+                    <div class="hud-diag-row">
+                        <span class="dr-label"><i class="fa-solid fa-thermometer-half" style="color:#f59e0b;font-size:0.6rem;"></i>Temp Trend</span>
+                        <span class="dr-val" id="diagTempTrend">--</span>
+                    </div>
+                    <div class="hud-diag-row">
+                        <span class="dr-label"><i class="fa-solid fa-flask" style="color:#a78bfa;font-size:0.6rem;"></i>pH Trend</span>
+                        <span class="dr-val" id="diagPhTrend">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Accordion: Environmental ──────────────────────────────── -->
+        <div class="hud-accordion" style="margin-bottom:8px;">
+            <div class="hud-accordion-header" id="accEnvHeader">
+                <span><i class="fa-solid fa-leaf" style="color:#34d399;margin-right:4px;"></i>Environmental</span>
+                <i class="fa-solid fa-chevron-up acc-chevron" id="accEnvChevron"></i>
+            </div>
+            <div class="hud-accordion-body" id="accEnvBody">
+                <div class="hud-diag-rows" style="padding:0;">
+                    <div class="hud-diag-row">
+                        <span class="dr-label"><i class="fa-solid fa-water" style="color:#38bdf8;font-size:0.6rem;"></i>Turbidity</span>
+                        <span class="dr-val" id="diagTurbidity">--</span>
+                    </div>
+                    <div class="hud-diag-row">
+                        <span class="dr-label"><i class="fa-solid fa-eye" style="color:var(--primary);font-size:0.6rem;"></i>Clarity Idx</span>
+                        <span class="dr-val" id="diagClarity">--</span>
+                    </div>
+                    <div class="hud-diag-row">
+                        <span class="dr-label"><i class="fa-solid fa-flask-vial" style="color:#a78bfa;font-size:0.6rem;"></i>Free NH₃</span>
+                        <span class="dr-val" id="diagFreeNH3">--</span>
+                    </div>
+                    <div class="hud-diag-row">
+                        <span class="dr-label"><i class="fa-solid fa-bacterium" style="color:#f43f5e;font-size:0.6rem;"></i>BOD Est.</span>
+                        <span class="dr-val" id="diagBod">--</span>
+                    </div>
+                    <div class="hud-diag-row">
+                        <span class="dr-label"><i class="fa-solid fa-utensils" style="color:var(--primary);font-size:0.6rem;"></i>Feeding</span>
+                        <span class="dr-val" id="diagFeeding">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+            <!-- Hidden sensor values used by JS -->
+            <div style="display:none;">
+                <div id="gnc-chip-ph"><span class="chip-val" id="gnc-ph"></span></div>
+                <div id="gnc-chip-temp"><span class="chip-val" id="gnc-temp"></span></div>
+                <div id="gnc-chip-hs"><span class="chip-val" id="gnc-hs"></span></div>
+                <div id="gnc-chip-nh3"><span class="chip-val" id="gnc-nh3"></span></div>
+            </div>
+        </div> <!-- Closes flex scroll wrapper -->
+    </div> <!-- Closes hudGauges -->
+
+    <!-- GNC Controls removed per user request -->
+
+    </div> <!-- Closes left-hud-sidebar -->
+
+    <!-- ══ HUD: AI Diagnostics (Standalone bottom left) ═══════════════════════ -->
+    <div class="map-hud" id="hudDiag" style="position: absolute; bottom: 12px; left: 12px; width: 600px; pointer-events: all; z-index: 500;">
+        <div class="hud-label" style="cursor:pointer;" id="hudDiagToggle">
+            <i class="fa-solid fa-brain" style="font-size:0.5rem;animation:brain-glow 2.5s ease-in-out infinite;"></i>AI Diagnostics
+            <i class="fa-solid fa-chevron-up" id="hudDiagChevron" style="font-size:0.5rem;margin-left:auto;transition:transform 0.25s;"></i>
+        </div>
+        <div class="hud-diag-body" id="hudDiagBody" style="display:block;">
+            <div class="hud-toxicity">
+                <span style="font-size:0.62rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;gap:5px;">
+                    <i class="fa-solid fa-vial-circle-check" style="color:var(--primary);"></i>Toxicity
+                </span>
+                <span id="toxicityAnalysis" style="font-size:0.72rem;color:var(--text-primary);font-weight:600;text-align:right;">Safe range ammonia levels.</span>
+            </div>
+
+            <!-- Alert log -->
+            <div id="hudAlertLog" class="hud-alert-log" style="display:none;">
+                <!-- Populated by JS -->
+            </div>
+
+            <div class="hud-ai-block">
+                <i class="fa-solid fa-brain" style="color:var(--primary);font-size:0.9rem;margin-top:1px;flex-shrink:0;animation:brain-glow 2.5s ease-in-out infinite;"></i>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-size:0.75rem;font-weight:700;color:var(--text-primary);line-height:1.3;" id="sysAiVerdict">AI Assessment Loading…</div>
+                    <div style="font-size:0.68rem;color:var(--text-muted);line-height:1.4;margin-top:3px;" id="sysAiAnalysis">Analyzing water quality parameters…</div>
+                </div>
+            </div>
+            <div style="font-size:0.55rem;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:var(--text-muted);display:flex;align-items:center;gap:5px;margin-bottom:4px;">
+                <i class="fa-solid fa-list-check" style="color:var(--primary);"></i>Action Items
+            </div>
+            <ul class="hud-actions-list" id="sysAiRecommendations">
+                <li>Assess active telemetry link connections.</li>
+            </ul>
+        </div>
+    </div> <!-- Closes hudDiag -->
+
+
+
+    <!-- ══ HUD: BOTTOM-CENTER — Habitability Metrics ════════════════════ -->
+    <div class="map-hud map-hud-bc" id="hudMetrics" style="bottom:12px;">
+        <div class="hud-metric-pill">
+            <i class="mp-icon fa-solid fa-heart-pulse" style="color:#f43f5e;"></i>
+            <div><div class="mp-label">PHI</div><div class="mp-val" id="valPhi" style="color:var(--primary);">--</div></div>
+        </div>
+        <div class="hud-metric-pill">
+            <i class="mp-icon fa-solid fa-shield-heart" style="color:var(--primary);"></i>
+            <div><div class="mp-label">Survival</div><div class="mp-val" id="valSurvival" style="color:var(--primary);">--</div><div class="mp-unit">%</div></div>
+        </div>
+        <div class="hud-metric-pill">
+            <i class="mp-icon fa-solid fa-flask" style="color:var(--accent-blue);"></i>
+            <div><div class="mp-label">pH avg</div><div class="mp-val" id="sysAvgPh" style="color:var(--accent-blue);">--</div></div>
+        </div>
+        <div class="hud-metric-pill">
+            <i class="mp-icon fa-solid fa-temperature-half" style="color:#f59e0b;"></i>
+            <div><div class="mp-label">Temp avg</div><div class="mp-val" id="sysAvgTemp" style="color:#f59e0b;">--</div><div class="mp-unit">°C</div></div>
+        </div>
+        <div class="hud-metric-pill">
+            <i class="mp-icon fa-solid fa-droplet" style="color:var(--accent-blue);"></i>
+            <div><div class="mp-label">HS NH₃ avg</div><div class="mp-val" id="sysAvgHs" style="color:var(--accent-blue);">--</div><div class="mp-unit">ppm</div></div>
+        </div>
+        <div class="hud-metric-pill">
+            <i class="mp-icon fa-solid fa-biohazard" style="color:#f59e0b;"></i>
+            <div><div class="mp-label">NH₃ avg</div><div class="mp-val" id="sysAvgNh3" style="color:#f59e0b;">--</div><div class="mp-unit">mg/L</div></div>
+        </div>
+        <div class="hud-metric-pill">
+            <i class="mp-icon fa-solid fa-battery-three-quarters" style="color:var(--primary);"></i>
+            <div><div class="mp-label">Battery</div><div class="mp-val" id="sysAvgPhi" style="color:var(--primary);">--</div><div class="mp-unit">%</div></div>
+        </div>
+    </div>
+
+    <!-- ══ MAP CONTROLS: Top-right ═══════════════════════════════════════ -->
+    <!-- Outer wrapper: row (controls) + column (colormap legend) -->
+    <div class="dashboard-map-controls" style="align-items: flex-start;">
+
+        <!-- Controls column (all the existing buttons) -->
+        <div style="display:flex;flex-direction:column;gap:6px;">
+            <!-- Row 1: Hide HUD, Opacity, Param, Satellite -->
+            <div style="display:flex;align-items:center;gap:6px;">
+                <button class="cyber-btn control-block glass-panel" id="btnToggleUI" style="height:32px;padding:0 10px;font-weight:600;" title="Toggle HUD overlays">
+                    <i class="fa-solid fa-eye-slash"></i> <span>Hide HUD</span>
+                </button>
+                <div class="control-block glass-panel" style="font-size:0.82rem;height:32px;">
+                    <span style="font-size:0.68rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Opacity:</span>
+                    <input type="range" id="heatmapOpacitySlider" min="0" max="1" step="0.05" value="0.65" style="width:65px;height:6px;background:var(--border-color);border-radius:3px;outline:none;-webkit-appearance:none;cursor:pointer;">
+                    <span id="heatmapOpacityVal" style="font-weight:600;color:var(--primary);min-width:28px;text-align:right;">65%</span>
+                </div>
+                <div class="control-block glass-panel" style="font-size:0.82rem;height:32px;padding-right:4px;">
+                    <span style="font-size:0.68rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Param:</span>
+                    <select id="heatmapParamSelect" class="form-input" style="font-size:0.8rem;padding:2px 4px;height:auto;width:120px;text-align:left;border:none;background:transparent;font-weight:600;color:var(--primary);outline:none;">
+                        <option value="hs_nh3">Headspace NH₃</option>
+                        <option value="ph">pH Level</option>
+                        <option value="temp">Temperature</option>
+                        <option value="nh3">Ammonia NH₃</option>
+                    </select>
+                </div>
+                <button class="cyber-btn glass-panel" id="toggleMapLayers" style="height:32px;padding:0 10px;background:var(--primary);border-color:var(--primary);color:white;font-weight:600;">
+                    <i class="fa-solid fa-satellite"></i> Satellite
+                </button>
+            </div>
+        </div>
+
+        <!-- Colormap legend panel (vertical, right of controls) -->
+        <div id="colormapLegend" class="glass-panel" style="
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            padding: 10px 10px 8px;
+            min-width: 56px;
+            gap: 0;
+            border-radius: 10px;
+            margin-left: 4px;
+        ">
+        <!-- Populated by updateColormapLegend() in map.js -->
+            <div style="font-size:0.46rem;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:var(--primary);margin-bottom:7px;text-align:right;white-space:nowrap;">HS NH₃ Scale</div>
+            <div style="display:flex;flex-direction:row;align-items:stretch;gap:5px;">
+                <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;height:115px;font-size:0.43rem;font-weight:700;font-family:var(--font-mono);color:var(--text-muted);padding:1px 0;line-height:1;">
+                    <span style="color:#10b981;white-space:nowrap">14 mg/L</span>
+                    <span style="white-space:nowrap">8 mg/L</span>
+                    <span style="white-space:nowrap">5 mg/L</span>
+                    <span style="white-space:nowrap">2 mg/L</span>
+                    <span style="color:#1414c8;white-space:nowrap">0 mg/L</span>
+                </div>
+                <div style="width:13px;height:115px;border-radius:6px;background:linear-gradient(to top,rgb(10,20,160) 0%,rgb(20,200,220) 25%,rgb(50,220,80) 50%,rgb(240,220,20) 75%,rgb(16,185,129) 100%);box-shadow:0 0 10px rgba(0,0,0,0.5),inset 0 0 0 1px rgba(255,255,255,0.08);flex-shrink:0;"></div>
+            </div>
+        </div>
+
+    </div><!-- /dashboard-map-controls -->
+
+
+</div>
+
+<!-- ══ AI PATH MODAL ═══════════════════════════════════════════════════════ -->
+<div id="aiPathModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.55);backdrop-filter:blur(3px);align-items:center;justify-content:center;">
+    <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:12px;padding:28px;width:min(840px,95vw);max-height:85vh;overflow-y:auto;box-shadow:var(--shadow-md);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <div>
+                <div style="font-size:1rem;font-weight:700;color:var(--text-primary);">AI-Generated Path Plans</div>
+                <div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px;">Select a coverage strategy to execute on <span id="modalVesselLabel" style="color:var(--primary);font-weight:600;">CRSMD0001</span></div>
+            </div>
+            <button id="closeAiModal" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:var(--text-muted);padding:4px 8px;">✕</button>
+        </div>
+        <div id="aiPathCards" style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
+            <div style="text-align:center;padding:40px;color:var(--text-muted);grid-column:span 2;">
+                <i class="fa-solid fa-circle-notch fa-spin" style="font-size:1.5rem;margin-bottom:10px;"></i><br>
+                Generating path strategies…
+            </div>
+        </div>
+    </div>
+</div>
+
+    <!-- ══ POPUP TAB MODAL ═══════════════════════════════════════════════════ -->
+    <div id="metricDataModal" style="display:none; position: fixed; inset: 0; background: rgba(11,17,32,0.85); z-index: 99999; backdrop-filter: blur(8px); opacity: 0; transition: opacity 0.3s ease; justify-content: center; align-items: center;">
+        <div id="metricDataModalContent" style="width: 85%; height: 85%; background: var(--bg-card); border: 1px solid rgba(16,185,129,0.3); border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.8); transform: translateY(40px) scale(0.95); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); display: flex; flex-direction: column; overflow: hidden;">
+            <div style="padding: 14px 24px; background: rgba(0,0,0,0.4); border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 1px; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-chart-line"></i> <span id="metricModalTitle">System Telemetry Data</span>
+                </div>
+                <button id="metricModalClose" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.4rem; transition: color 0.2s;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div style="flex: 1; position: relative;">
+                <!-- Reusing the data.html page within the iframe so we get full graphs and history -->
+                <iframe id="metricDataIframe" src="/data" style="width: 100%; height: 100%; border: none;"></iframe>
+            </div>
+        </div>
+    </div>
+
+<script>
+// ── Dashboard-specific wiring ──────────────────────────────────────────────
+
+// Popup modal for Metric Pills
+const metricPills = document.querySelectorAll('.hud-metric-pill');
+const metricModal = document.getElementById('metricDataModal');
+const metricModalContent = document.getElementById('metricDataModalContent');
+const metricModalClose = document.getElementById('metricModalClose');
+const metricModalTitle = document.getElementById('metricModalTitle');
+
+function closeMetricModal() {
+    metricModal.style.opacity = '0';
+    metricModalContent.style.transform = 'translateY(40px) scale(0.95)';
+    setTimeout(() => { metricModal.style.display = 'none'; }, 300);
+}
+
+metricModalClose.addEventListener('click', closeMetricModal);
+metricModal.addEventListener('click', (e) => {
+    if (e.target === metricModal) closeMetricModal();
+});
+
+metricPills.forEach(pill => {
+    pill.addEventListener('click', () => {
+        const labelEl = pill.querySelector('.mp-label');
+        let paramName = 'all';
+        if (labelEl) {
+            const txt = labelEl.textContent.toLowerCase();
+            metricModalTitle.textContent = labelEl.textContent + ' TELEMETRY';
+            if (txt.includes('hs nh')) paramName = 'hs_nh3';
+            else if (txt.includes('nh3') || txt.includes('nh₃')) paramName = 'nh3';
+            else if (txt.includes('ph')) paramName = 'ph';
+            else if (txt.includes('temp')) paramName = 'temp';
+            else if (txt.includes('phi')) paramName = 'phi';
+            else if (txt.includes('survival')) paramName = 'survival';
+        }
+        
+        const iframe = document.getElementById('metricDataIframe');
+        if (iframe) iframe.src = '/data?param=' + paramName;
+        
+        metricModal.style.display = 'flex';
+        // force reflow
+        void metricModal.offsetWidth;
+        metricModal.style.opacity = '1';
+        metricModalContent.style.transform = 'translateY(0) scale(1)';
+    });
+});
+
+
+// Diag drawer toggle — starts expanded
+const hudDiagToggle = document.getElementById('hudDiagToggle');
+const hudDiagBody = document.getElementById('hudDiagBody');
+const hudDiagChevron = document.getElementById('hudDiagChevron');
+if (hudDiagChevron) hudDiagChevron.style.transform = '';
+if (hudDiagToggle && hudDiagBody) {
+    hudDiagToggle.addEventListener('click', () => {
+        const collapsed = hudDiagBody.style.display === 'none';
+        hudDiagBody.style.display = collapsed ? '' : 'none';
+        if (hudDiagChevron) hudDiagChevron.style.transform = collapsed ? '' : 'rotate(180deg)';
+    });
+}
+
+// Arc gauge update utility — works with r=32 circle (circumference 201.1)
+window.updateArcGauge = function(arcId, valId, statId, cardId, value, min, max, unit, zones) {
+    const arc    = document.getElementById(arcId);
+    const valEl  = document.getElementById(valId);
+    const statEl = document.getElementById(statId);
+    if (!arc || value == null) return;
+
+    const circ = 201.1; // 2*pi*32
+    const pct  = Math.max(0, Math.min(1, (value - min) / (max - min)));
+    arc.style.strokeDashoffset = (circ * (1 - pct)).toFixed(1);
+
+    // Determine zone
+    let zone = 'optimal', color = '#10b981';
+    if (zones) {
+        if (zones.deadly_high != null && value > zones.deadly_high) { zone = 'deadly'; color = '#ef4444'; }
+        else if (zones.warn_high != null && value > zones.warn_high) { zone = 'warn'; color = '#f59e0b'; }
+        else if (zones.deadly_low != null && value < zones.deadly_low) { zone = 'deadly'; color = '#ef4444'; }
+        else if (zones.warn_low  != null && value < zones.warn_low)  { zone = 'warn';  color = '#f59e0b'; }
+    }
+    arc.style.stroke = color;
+    if (valEl) {
+        valEl.textContent = value.toFixed(unit === 'mg/L' && value < 0.1 ? 4 : 2);
+        valEl.style.color = color;
+    }
+    if (statEl) {
+        statEl.textContent = zone === 'optimal' ? 'OPTIMAL' : zone === 'warn' ? 'WARNING' : 'CRITICAL';
+        statEl.className   = 'arc-gauge-status' + (zone === 'warn' ? ' warn' : zone === 'deadly' ? ' deadly' : '');
+    }
+};
+
+// PHI banner updater
+window.updatePhiBanner = function(phi, status) {
+    const arc    = document.getElementById('phiBannerArc');
+    const valEl  = document.getElementById('phiBannerVal');
+    const stsEl  = document.getElementById('phiBannerStatus');
+    const subEl  = document.getElementById('phiBannerSub');
+    const barEl  = document.getElementById('phiBannerBar');
+    if (!arc || phi == null) return;
+    const circ = 213.6; // 2*pi*34
+    const pct  = Math.max(0, Math.min(1, phi / 100));
+    arc.style.strokeDashoffset = (circ * (1 - pct)).toFixed(1);
+    const color = phi >= 70 ? '#10b981' : phi >= 45 ? '#f59e0b' : '#ef4444';
+    arc.style.stroke = color;
+    if (valEl)  { valEl.textContent = phi.toFixed(0); valEl.style.color = color; }
+    if (stsEl)  { stsEl.textContent = (status || 'OPTIMAL').toUpperCase(); stsEl.style.color = color; }
+    if (subEl)  { subEl.textContent = phi >= 70 ? 'All parameters nominal' : phi >= 45 ? 'Suboptimal conditions' : 'Immediate action required'; }
+    if (barEl)  { barEl.style.width = (phi) + '%'; barEl.style.background = color; }
+};
+
+// Accordion toggles for diagnostics sections
+document.querySelectorAll('.hud-accordion-header').forEach(header => {
+    const bodyId    = header.id.replace('Header', 'Body');
+    const chevronId = header.id.replace('Header', 'Chevron');
+    const body    = document.getElementById(bodyId);
+    const chevron = document.getElementById(chevronId);
+    header.addEventListener('click', () => {
+        const isOpen = !body.classList.contains('hidden');
+        body.classList.toggle('hidden', isOpen);
+        header.classList.toggle('collapsed', isOpen);
+    });
+});
+
+// Init control buttons  
+document.getElementById('btnAutoStart')?.addEventListener('click', () => window.sendCommand?.('start_auto'));
+document.getElementById('btnExplore')?.addEventListener('click', () => window.sendCommand?.('start_explore'));
+document.getElementById('btnEmergencyStop')?.addEventListener('click', () => window.sendCommand?.('emergency_stop'));
+document.getElementById('btnRTH')?.addEventListener('click', () => window.sendCommand?.('rth'));
+document.getElementById('btnDock')?.addEventListener('click', () => window.sendCommand?.('dock'));
+</script>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/map.js?v=1.4.0"></script>
+{% endblock %}

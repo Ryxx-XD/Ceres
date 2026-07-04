@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CERES — Initializing</title>
+    <!-- NO external font requests — system fonts render instantly -->
+    <!-- SFX: all audio is synthesized via Web Audio API — zero external files -->
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --g:    #10b981;
+            --glow: rgba(16,185,129,.5);
+            --gdim: rgba(16,185,129,.12);
+            --navy: #060d1a;
+            --slate: rgba(15,30,55,.92);
+        }
+
+        html, body {
+            width: 100%; height: 100%;
+            background: linear-gradient(135deg, #090d16 0%, #0b1120 50%, #061d12 100%);
+            overflow: hidden;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            color: #fff;
+            user-select: none;
+        }
+
+        /* Subtle grid */
+        body::before {
+            content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+            background:
+                repeating-linear-gradient(90deg, transparent, transparent 80px, rgba(16,185,129,.025) 80px, rgba(16,185,129,.025) 81px),
+                repeating-linear-gradient(0deg,  transparent, transparent 80px, rgba(16,185,129,.025) 80px, rgba(16,185,129,.025) 81px);
+        }
+
+        /* CRT scanlines */
+        body::after {
+            content: ''; position: fixed; inset: 0; z-index: 1000; pointer-events: none;
+            background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,.08) 3px, rgba(0,0,0,.08) 4px);
+        }
+
+        /* Radial bloom behind logo */
+        .bloom {
+            position: fixed; z-index: 0; pointer-events: none;
+            top: 34%; left: 50%; transform: translate(-50%, -50%);
+            width: 720px; height: 520px;
+            background: radial-gradient(ellipse, rgba(16,185,129,.07) 0%, transparent 68%);
+            animation: bloom-pulse 5s ease-in-out infinite;
+        }
+        @keyframes bloom-pulse { 0%,100%{opacity:.5;transform:translate(-50%,-50%) scale(1)} 50%{opacity:1;transform:translate(-50%,-50%) scale(1.15)} }
+
+        /* Corner brackets */
+        .corner { position: fixed; width: 28px; height: 28px; z-index: 2; }
+        .corner::before, .corner::after { content: ''; position: absolute; background: var(--g); opacity: .35; }
+        .corner::before { width: 1.5px; height: 100%; }
+        .corner::after  { width: 100%; height: 1.5px; }
+        .tl { top: 18px; left: 18px; }
+        .tr { top: 18px; right: 18px; transform: scaleX(-1); }
+        .bl { bottom: 18px; left: 18px; transform: scaleY(-1); }
+        .br { bottom: 18px; right: 18px; transform: scale(-1); }
+
+        /* ── LAYOUT ── */
+        .stage {
+            position: relative; z-index: 2;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            height: 100vh; gap: 48px; padding: 32px;
+        }
+
+        /* ── LOGO ── */
+        .logo { display: flex; flex-direction: column; align-items: center; gap: 14px; animation: rise .8s cubic-bezier(.16,1,.3,1) both; }
+        @keyframes rise { from{opacity:0;transform:translateY(-24px)} to{opacity:1;transform:translateY(0)} }
+
+        .orbit {
+            position: relative; width: 80px; height: 80px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .orbit-ring1 {
+            position: absolute; inset: 0; border-radius: 50%;
+            border: 1px solid rgba(16,185,129,.22);
+            animation: spin 14s linear infinite;
+        }
+        .orbit-ring2 {
+            position: absolute; inset: -8px; border-radius: 50%;
+            border: 1px solid rgba(16,185,129,.1);
+            animation: spin 22s linear infinite reverse;
+        }
+        .orbit-ring1::after {
+            content: ''; position: absolute; top: -3px; left: 50%; margin-left: -3px;
+            width: 6px; height: 6px; background: var(--g);
+            border-radius: 50%; box-shadow: 0 0 8px var(--glow);
+        }
+        @keyframes spin { to{transform: rotate(360deg)} }
+
+        .wave-svg { filter: drop-shadow(0 0 14px var(--glow)); }
+
+        .brand { text-align: center; }
+        .brand-name {
+            font-size: 4.8rem; font-weight: 900;
+            letter-spacing: .4em; color: #fff; line-height: 1;
+            text-shadow: 0 0 80px rgba(255,255,255,.06);
+        }
+        .brand-tag {
+            font-size: .65rem; font-weight: 600; letter-spacing: .38em;
+            color: var(--g); text-transform: uppercase; margin-top: 4px; opacity: .8;
+        }
+
+        /* ── STATUS PANEL ── */
+        .panel {
+            width: min(560px, 94vw);
+            display: flex; flex-direction: column; gap: 14px;
+            animation: rise .8s .18s cubic-bezier(.16,1,.3,1) both;
+        }
+
+        /* Progress bar */
+        .track { height: 2px; background: rgba(16,185,129,.1); border-radius: 99px; overflow: hidden; position: relative; }
+        .fill  { height: 100%; width: 0%; border-radius: 99px; background: linear-gradient(90deg, var(--g), #34d399); box-shadow: 0 0 10px var(--glow); transition: width .5s ease; }
+        .shim  { position: absolute; inset: 0; background: linear-gradient(90deg,transparent,rgba(255,255,255,.3),transparent); animation: shim 1.8s ease-in-out infinite; }
+        @keyframes shim { from{transform:translateX(-100%)} to{transform:translateX(300%)} }
+
+        /* Status row */
+        .srow { display: flex; align-items: center; gap: 10px; }
+        .dot  {
+            width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+            background: var(--g); box-shadow: 0 0 8px var(--g);
+            animation: blink 1s ease-in-out infinite;
+        }
+        .dot.warn  { background: #f59e0b; box-shadow: 0 0 8px #f59e0b; }
+        .dot.ready { background: var(--g); box-shadow: 0 0 16px var(--g); animation: none; }
+        .dot.err   { background: #ef4444; box-shadow: 0 0 8px #ef4444; animation: none; }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.15} }
+
+        .smsg { font-size: .78rem; font-weight: 700; font-family: Consolas, 'Courier New', monospace; color: var(--g); flex: 1; letter-spacing: .04em; }
+        .smsg.warn { color: #f59e0b; }
+        .smsg.err  { color: #ef4444; }
+        .stimer { font-size: .7rem; font-family: Consolas, 'Courier New', monospace; color: #1e3a5f; letter-spacing: .04em; }
+
+        /* Terminal */
+        .term {
+            background: rgba(4,10,22,.75); border: 1px solid rgba(16,185,129,.1);
+            border-radius: 7px; padding: 12px 16px;
+            display: flex; flex-direction: column; gap: 4px;
+            min-height: 72px;
+        }
+        .tline { font-size: .7rem; font-family: Consolas, 'Courier New', monospace; color: #334155; line-height: 1.55; animation: lin .2s ease both; }
+        @keyframes lin { from{opacity:0;transform:translateX(-5px)} to{opacity:1;transform:translateX(0)} }
+        .tline .ts  { color: rgba(16,185,129,.35); }
+        .tline .tag { color: rgba(16,185,129,.55); }
+        .tline .ok  { color: #10b981; font-weight: 700; }
+
+        /* Launch button */
+        .btn-launch {
+            display: none; width: 100%; padding: 15px 24px;
+            background: linear-gradient(135deg, #059669, #10b981);
+            border: none; border-radius: 7px; cursor: pointer;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            font-size: .88rem; font-weight: 800;
+            letter-spacing: .14em; text-transform: uppercase; color: #fff;
+            box-shadow: 0 6px 32px rgba(16,185,129,.4);
+            transition: all .2s ease; position: relative; overflow: hidden;
+            animation: pop .45s cubic-bezier(.34,1.56,.64,1) both;
+        }
+        .btn-launch::before { content:''; position:absolute; inset:0; background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent); animation:shim 2s ease-in-out infinite; }
+        .btn-launch:hover  { transform: translateY(-2px); box-shadow: 0 8px 40px rgba(16,185,129,.55); }
+        .btn-launch:active { transform: translateY(0); }
+        @keyframes pop { from{opacity:0;transform:scale(.93)} to{opacity:1;transform:scale(1)} }
+
+        .hint { display: none; text-align: center; font-size: .62rem; font-family: Consolas, 'Courier New', monospace; color: #1e3a5f; letter-spacing: .07em; margin-top: -4px; }
+
+        /* Version */
+        .ver { position: fixed; bottom: 14px; z-index: 2; font-size: .58rem; font-family: Consolas, 'Courier New', monospace; color: #0f1e35; letter-spacing: .1em; }
+
+        /* Transition flash */
+        .flash { position: fixed; inset: 0; background: var(--navy); opacity: 0; pointer-events: none; z-index: 9999; transition: opacity .32s ease; }
+        .flash.on { opacity: 1; pointer-events: all; }
+
+        #login-particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="login-particles"></canvas>
+<div class="bloom"></div>
+<div class="corner tl"></div><div class="corner tr"></div>
+<div class="corner bl"></div><div class="corner br"></div>
+
+<div class="stage">
+
+    <!-- ── Logo ── -->
+    <div class="logo">
+        <div class="orbit">
+            <div class="orbit-ring1"></div>
+            <div class="orbit-ring2"></div>
+            <svg class="wave-svg" width="46" height="46" viewBox="0 0 46 46" fill="none">
+                <path d="M5 15 Q11.5 9 18 15 Q24.5 21 31 15 Q37.5 9 44 15" stroke="#10b981" stroke-width="3.2" stroke-linecap="round"/>
+                <path d="M5 23 Q11.5 17 18 23 Q24.5 29 31 23 Q37.5 17 44 23" stroke="#10b981" stroke-width="3.2" stroke-linecap="round" opacity=".65"/>
+                <path d="M5 31 Q11.5 25 18 31 Q24.5 37 31 31 Q37.5 25 44 31" stroke="#10b981" stroke-width="3.2" stroke-linecap="round" opacity=".35"/>
+            </svg>
+        </div>
+        <div class="brand">
+            <div class="brand-name">CERES</div>
+            <div class="brand-tag">Autonomous Aquaculture Management Platform</div>
+        </div>
+    </div>
+
+    <!-- ── Status panel ── -->
+    <div class="panel">
+
+        <div class="track">
+            <div class="fill" id="fill"></div>
+            <div class="shim"></div>
+        </div>
+
+        <div class="srow">
+            <div class="dot" id="dot"></div>
+            <div class="smsg" id="msg">BOOT SEQUENCE INITIATED</div>
+            <div class="stimer" id="timer">0s</div>
+        </div>
+
+        <div class="term" id="term"></div>
+
+        <button class="btn-launch" id="btnLaunch" onclick="go()">
+            &#9654;&nbsp;&nbsp;LAUNCH CERES
+        </button>
+        <div class="hint" id="hint">CLICK TO ENTER FULLSCREEN &nbsp;·&nbsp; PRESS F11 TO TOGGLE MANUALLY</div>
+    </div>
+
+</div>
+
+<div class="ver">CERES &nbsp;|&nbsp; PRECISION AQUACULTURE &nbsp;|&nbsp; v1.0</div>
+<div class="flash" id="flash"></div>
+
+<script>
+(function () {
+    'use strict';
+
+    const SERVER   = 'http://localhost:5002';
+    const POLL_MS  = 350;   // fast polling — localhost responds almost instantly when up
+
+    let elapsed = 0, ready = false, pollId, tickId;
+
+    const fill    = document.getElementById('fill');
+    const dot     = document.getElementById('dot');
+    const msg     = document.getElementById('msg');
+    const timerEl = document.getElementById('timer');
+    const term    = document.getElementById('term');
+    const btn     = document.getElementById('btnLaunch');
+    const hint    = document.getElementById('hint');
+    const flash   = document.getElementById('flash');
+
+    // ── Web Audio SFX Engine ─────────────────────────────────────────────────
+    let audioCtx = null;
+    function getAudio() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        return audioCtx;
+    }
+
+    // Generic tone helper
+    function playTone(freq, type, startTime, duration, gain, ctx) {
+        const osc = ctx.createOscillator();
+        const env = ctx.createGain();
+        osc.connect(env); env.connect(ctx.destination);
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, startTime);
+        env.gain.setValueAtTime(0, startTime);
+        env.gain.linearRampToValueAtTime(gain, startTime + 0.008);
+        env.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+        osc.start(startTime);
+        osc.stop(startTime + duration + 0.01);
+    }
+
+    // Boot startup chime — cinematic ascending arpeggio
+    function sfxBoot() {
+        const ctx = getAudio();
+        const t   = ctx.currentTime;
+        const notes = [220, 330, 440, 660, 880, 1320];
+        notes.forEach((f, i) => playTone(f, 'sine', t + i * 0.085, 0.45, 0.12, ctx));
+        // Sub-bass thud
+        playTone(60, 'sine', t, 0.25, 0.18, ctx);
+    }
+
+    // Short terminal beep per log line
+    function sfxBeep() {
+        const ctx = getAudio();
+        const t   = ctx.currentTime;
+        playTone(1047, 'square', t, 0.06, 0.04, ctx);
+        playTone(1319, 'square', t + 0.04, 0.06, 0.03, ctx);
+    }
+
+    // Ready fanfare — triumphant ascending chord
+    function sfxReady() {
+        const ctx = getAudio();
+        const t   = ctx.currentTime;
+        // Chord: root + fifth + octave
+        [[523, 0], [659, 0], [784, 0], [1047, 0.08], [1319, 0.16], [1047, 0.3], [1319, 0.42], [1568, 0.55]]
+            .forEach(([f, dt]) => playTone(f, 'sine', t + dt, 0.5, 0.09, ctx));
+        // Warm sub pad
+        playTone(65, 'sine', t, 1.0, 0.14, ctx);
+        playTone(130, 'triangle', t, 0.9, 0.08, ctx);
+    }
+
+    // Launch whoosh
+    function sfxLaunch() {
+        const ctx = getAudio();
+        const t   = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const env = ctx.createGain();
+        osc.connect(env); env.connect(ctx.destination);
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(200, t);
+        osc.frequency.exponentialRampToValueAtTime(2800, t + 0.32);
+        env.gain.setValueAtTime(0.08, t);
+        env.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+        osc.start(t); osc.stop(t + 0.36);
+    }
+    // ── End SFX Engine ───────────────────────────────────────────────────────
+
+    function ts() { return new Date().toTimeString().slice(0, 8); }
+
+    function log(tag, text, cls) {
+        const d = document.createElement('div');
+        d.className = 'tline';
+        d.innerHTML = `<span class="ts">${ts()}</span>  <span class="tag">[${tag}]</span>  <span class="${cls || ''}">${text}</span>`;
+        term.appendChild(d);
+        while (term.children.length > 4) term.removeChild(term.firstChild);
+        sfxBeep();
+    }
+
+    function setStatus(text, cls) {
+        msg.textContent  = text;
+        msg.className    = 'smsg '  + (cls || '');
+        dot.className    = 'dot '   + (cls || '');
+    }
+
+    // Sequenced boot log lines
+    const BOOT = [
+        [0.5,  'SYS',  'Initializing runtime modules'],
+        [1.3,  'NET',  'Binding WebSocket server on :5002'],
+        [2.5,  'CORE', 'Starting telemetry engine'],
+        [4.2,  'GNC',  'Loading GNC pathfinding routines'],
+        [6.5,  'SENS', 'Sensor fusion pipeline ready'],
+        [9.5,  'WIFI', 'Establishing vessel mesh network'],
+    ];
+    BOOT.forEach(([t, tag, text]) => setTimeout(() => { if (!ready) log(tag, text); }, t * 1000));
+
+    // Elapsed counter + fake progress
+    tickId = setInterval(() => {
+        elapsed++;
+        timerEl.textContent = elapsed + 's';
+        if (!ready) {
+            // Fill up to 88% over ~20s; holds there until server responds
+            fill.style.width = Math.min(88, elapsed * 4.4) + '%';
+            if (elapsed > 5) setStatus(`WAITING FOR LOCALHOST:5002... (${elapsed}s)`, 'warn');
+        }
+    }, 1000);
+
+    // Poll the local server — fast interval since it's local loopback only
+    function poll() {
+        fetch(SERVER, { mode: 'no-cors', cache: 'no-store' })
+            .then(() => onReady())
+            .catch(() => {});
+    }
+
+    function onReady() {
+        if (ready) return;
+        ready = true;
+        clearInterval(pollId);
+        clearInterval(tickId);
+
+        fill.style.width = '100%';
+        setStatus('ALL SYSTEMS ONLINE — READY TO LAUNCH', 'ready');
+        log('OK', 'Server is online at localhost:5002', 'ok');
+        log('OK', 'All systems nominal', 'ok');
+        sfxReady();
+
+        btn.style.display  = 'block';
+        hint.style.display = 'block';
+    }
+
+    window.go = function () {
+        btn.disabled = true;
+        sfxLaunch();
+
+        // Crossfade flash then navigate (F11 fullscreen persists across redirect)
+        flash.classList.add('on');
+        setTimeout(() => { window.location.href = SERVER + '?no_kiosk'; }, 340);
+    };
+
+    // Begin polling immediately
+    poll();
+    pollId = setInterval(poll, POLL_MS);
+
+    // Play startup chime on first user interaction (browser autoplay policy)
+    // We hook the first click/keydown AND the DOMContentLoaded approach:
+    let bootChimePlayed = false;
+    function triggerBootChime() {
+        if (bootChimePlayed) return;
+        bootChimePlayed = true;
+        sfxBoot();
+        document.removeEventListener('click', triggerBootChime);
+        document.removeEventListener('keydown', triggerBootChime);
+    }
+    // Try autoplay immediately; if blocked, wait for user gesture
+    try { sfxBoot(); bootChimePlayed = true; } catch (_) {}
+    if (!bootChimePlayed) {
+        document.addEventListener('click', triggerBootChime);
+        document.addEventListener('keydown', triggerBootChime);
+    }
+
+    // Particle Background Animation (Copied from Login page)
+    (function() {
+        const canvas = document.getElementById('login-particles');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+        
+        const particles = [];
+        const count = 45;
+        const maxDist = 120;
+        
+        window.addEventListener('resize', () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        });
+        
+        for (let i = 0; i < count; i++) {
+            particles.push({
+                x: Math.random() * width,
+                y: Math.random() * height,
+                vx: (Math.random() - 0.5) * 0.4,
+                vy: (Math.random() - 0.5) * 0.4,
+                r: Math.random() * 2 + 1,
+                color: Math.random() > 0.5 ? '#10b981' : '#38bdf8'
+            });
+        }
+        
+        let mouse = { x: -1000, y: -1000 };
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        });
+        window.addEventListener('mouseleave', () => {
+            mouse.x = -1000;
+            mouse.y = -1000;
+        });
+        
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+            
+            // Draw connecting lines
+            for (let i = 0; i < count; i++) {
+                const p1 = particles[i];
+                for (let j = i + 1; j < count; j++) {
+                    const p2 = particles[j];
+                    const dx = p1.x - p2.x;
+                    const dy = p1.y - p2.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < maxDist) {
+                        const alpha = (1 - dist / maxDist) * 0.12;
+                        ctx.strokeStyle = `rgba(148, 163, 184, ${alpha})`;
+                        ctx.lineWidth = 0.8;
+                        ctx.beginPath();
+                        ctx.moveTo(p1.x, p1.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.stroke();
+                    }
+                }
+                
+                // Draw line to mouse
+                const dxMouse = p1.x - mouse.x;
+                const dyMouse = p1.y - mouse.y;
+                const distMouse = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
+                if (distMouse < maxDist * 1.5) {
+                    const alpha = (1 - distMouse / (maxDist * 1.5)) * 0.22;
+                    ctx.strokeStyle = `rgba(16, 185, 129, ${alpha})`;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(mouse.x, mouse.y);
+                    ctx.stroke();
+                }
+            }
+            
+            // Update and draw particles
+            for (let i = 0; i < count; i++) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                
+                if (p.x < 0 || p.x > width) p.vx *= -1;
+                if (p.y < 0 || p.y > height) p.vy *= -1;
+                
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            requestAnimationFrame(animate);
+        }
+        
+        animate();
+    })();
+})();
+</script>
+
+</body>
+</html>

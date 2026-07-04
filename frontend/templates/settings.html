@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Settings | System Configuration{% endblock %}
+{% block page_title %}Settings & Configuration{% endblock %}
+{% block page_subtitle %}Operational Parameters, Network Interfaces & Console Appearance{% endblock %}
+
+{% block content %}
+<div class="grid-container">
+    <!-- Tilapia Bio Threshold Thresholds -->
+    <div class="col-lg-6">
+        <div class="cyber-card">
+            <div class="card-title">
+                BIOLOGICAL CRITICAL THRESHOLDS
+                <span class="status-dot"></span>
+            </div>
+            
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px;">
+                Alert trigger points for Oreochromis niloticus. System automatically fires SMS alarms on connection loss or threshold violations.
+            </p>
+            
+            <div class="metric-row">
+                <span class="metric-label">Max Headspace NH3 (ppm)</span>
+                <input type="number" step="1.0" value="25.0" class="form-input">
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">Max Un-ionized Ammonia (mg/L)</span>
+                <input type="number" step="0.001" value="0.05" class="form-input">
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">pH Lower Boundary</span>
+                <input type="number" step="0.1" value="6.0" class="form-input">
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">pH Upper Boundary</span>
+                <input type="number" step="0.1" value="9.5" class="form-input">
+            </div>
+            
+            <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
+                <button class="cyber-btn">Update Thresholds</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Networking & Comms config -->
+    <div class="col-lg-6">
+        <div class="cyber-card">
+            <div class="card-title">
+                NETWORK & ALARM INTERFACES
+                <span class="status-dot"></span>
+            </div>
+            
+            <div class="metric-row">
+                <span class="metric-label">Vessel SSID</span>
+                <input type="text" value="CeresNet" class="form-input">
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">WPA2 Password</span>
+                <input type="password" value="********" class="form-input">
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">Emergency SMS Recipient</span>
+                <input type="text" value="+639171234567" class="form-input">
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">Console Theme</span>
+                <select id="themeSelector" class="form-input" style="text-align-last: right; padding-right: 8px;">
+                    <option value="light">Fishery Light</option>
+                    <option value="dark">Fishery Dark</option>
+                </select>
+            </div>
+            
+            <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
+                <button class="cyber-btn">Save Configurations</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

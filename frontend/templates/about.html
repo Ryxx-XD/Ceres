@@ -1,0 +1,341 @@
+{% extends "base.html" %}
+
+{% block title %}About Us | CERES{% endblock %}
+{% block page_title %}About CERES{% endblock %}
+{% block page_subtitle %}Precision Robotics & Sustainable Aquaculture Data Science{% endblock %}
+
+{% block content %}
+<style>
+    /* Custom brand color overrides for About page */
+    :root {
+        --primary: #48c232;
+        --primary-hover: #3ca22a;
+        --primary-glow: rgba(72, 194, 50, 0.2);
+    }
+
+    .about-scroll-container {
+        flex: 1;
+        overflow-y: auto;
+        padding-right: 6px;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .premium-gradient-card {
+        background: linear-gradient(135deg, var(--bg-card) 0%, rgba(72, 194, 50, 0.04) 100%);
+        border: 1px solid var(--border-color);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .premium-gradient-card:hover {
+        transform: translateY(-2px);
+        border-color: var(--primary);
+        box-shadow: 0 12px 20px -10px var(--primary-glow);
+    }
+
+    /* Architecture / Engineering Pillars styles */
+    .pillar-card {
+        background: var(--bg-app);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-card);
+        padding: 16px;
+        transition: all 0.2s ease;
+    }
+
+    .pillar-card:hover {
+        border-color: var(--primary);
+        box-shadow: var(--shadow-sm);
+        transform: scale(1.01);
+    }
+
+    .pillar-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 10px;
+    }
+
+    .pillar-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--primary-glow);
+        color: var(--primary);
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+
+    .pillar-title {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .pillar-desc {
+        font-size: 0.85rem;
+        line-height: 1.5;
+        color: var(--text-secondary);
+    }
+
+    /* Founder profile styling */
+    .founder-profile {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        align-items: center;
+        text-align: center;
+        margin-top: 10px;
+    }
+
+    @media (min-width: 576px) {
+        .founder-profile {
+            flex-direction: row;
+            text-align: left;
+            align-items: flex-start;
+        }
+    }
+
+    .founder-avatar {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--primary), #38bdf8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 700;
+        font-size: 2rem;
+        box-shadow: 0 4px 10px rgba(72, 194, 50, 0.3);
+        flex-shrink: 0;
+    }
+
+    .founder-details {
+        flex: 1;
+    }
+
+    .founder-name {
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: var(--primary);
+        margin-bottom: 2px;
+    }
+
+    .founder-title {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        margin-bottom: 12px;
+    }
+
+    .founder-quote {
+        font-size: 0.85rem;
+        font-style: italic;
+        color: var(--text-secondary);
+        border-left: 3px solid var(--primary);
+        padding-left: 12px;
+        margin-bottom: 12px;
+        line-height: 1.4;
+    }
+
+    .founder-bio {
+        font-size: 0.85rem;
+        line-height: 1.5;
+        color: var(--text-secondary);
+    }
+
+    /* Contact Links */
+    .contact-link {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px;
+        background: var(--bg-app);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-card);
+        color: var(--text-primary);
+        text-decoration: none;
+        font-size: 0.85rem;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+
+    .contact-link:hover {
+        border-color: var(--primary);
+        background: var(--primary-glow);
+        transform: translateY(-1px);
+    }
+
+    .contact-icon {
+        font-size: 1rem;
+        color: var(--primary);
+        width: 20px;
+        text-align: center;
+    }
+    
+    @media (min-width: 992px) {
+        .col-lg-7 { grid-column: span 7; }
+        .col-lg-5 { grid-column: span 5; }
+
+        /* Full height card layout stretching */
+        .about-scroll-container {
+            height: 100%;
+        }
+        .about-scroll-container .grid-container {
+            flex: 1;
+            align-items: stretch;
+        }
+        .about-scroll-container .col-flex {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .about-scroll-container .cyber-card {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .about-scroll-container .cyber-card-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            gap: 10px;
+        }
+    }
+</style>
+
+<div class="about-scroll-container">
+    <div class="grid-container" style="min-height: 0;">
+        <!-- LEFT COLUMN: Vision & Pillars -->
+        <div class="col-lg-7 col-flex">
+            <!-- The Vision -->
+            <div class="cyber-card premium-gradient-card accent-left">
+                <div class="card-title">
+                    THE VISION
+                    <span class="card-title-icon"></span>
+                </div>
+                
+                <div class="cyber-card-content" style="font-size: 0.9rem; line-height: 1.6; color: var(--text-secondary); justify-content: center;">
+                    <p style="margin-bottom: 12px;">
+                        CERES is an autonomous, AI-driven ecological monitoring and navigation vessel engineered to revolutionize precision aquaculture. Designed specifically to support sustainable fish farming operations, CERES bridges the gap between complex hardware robotics and predictive ecological data science.
+                    </p>
+                    <p>
+                        By autonomously traversing water bodies, mapping physical boundaries, and analyzing synergistic water toxins in real time, CERES safeguards aquatic ecosystems, optimizes feeding environments, and proactively prevents catastrophic mortality events—starting with the vital <em>Oreochromis niloticus</em> (Nile Tilapia) fisheries.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Core Engineering Pillars -->
+            <div class="cyber-card premium-gradient-card accent-blue">
+                <div class="card-title">
+                    CORE ENGINEERING PILLARS
+                    <span class="card-title-icon blue"></span>
+                </div>
+                
+                <div class="cyber-card-content">
+                    <!-- Pillar 1 -->
+                    <div class="pillar-card">
+                        <div class="pillar-header">
+                            <div class="pillar-icon"><i class="fa-solid fa-satellite-dish"></i></div>
+                            <div class="pillar-title">Autonomous Navigation & Kinematics</div>
+                        </div>
+                        <div class="pillar-desc">
+                            Merging GPS geospatial streaming, IMU sensor fusion, and mmWave radar obstacle avoidance into a dual-propeller differential thrust system controlled by closed-loop PID guidance.
+                        </div>
+                    </div>
+
+                    <!-- Pillar 2 -->
+                    <div class="pillar-card">
+                        <div class="pillar-header">
+                            <div class="pillar-icon"><i class="fa-solid fa-map-location-dot"></i></div>
+                            <div class="pillar-title">Edge Intelligence & Spatial Mapping</div>
+                        </div>
+                        <div class="pillar-desc">
+                            Implementing adaptive algorithmic pathmaking and division to ensure comprehensive, energy-efficient spatial sampling across complex pond geometries.
+                        </div>
+                    </div>
+
+                    <!-- Pillar 3 -->
+                    <div class="pillar-card">
+                        <div class="pillar-header">
+                            <div class="pillar-icon"><i class="fa-solid fa-chart-line"></i></div>
+                            <div class="pillar-title">Predictive Bio-Analytics</div>
+                        </div>
+                        <div class="pillar-desc">
+                            Utilizing multi-tier regression models to calculate real-time habitability indices, translating critical environmental vectors—such as pH, temperature, and ammonia gas interactions—into actionable, long-term survival projections.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN: Founder & Contact -->
+        <div class="col-lg-5 col-flex">
+            <!-- Leadership Team / Founder -->
+            <div class="cyber-card premium-gradient-card accent-left">
+                <div class="card-title">
+                    OUR LEADERSHIP & DEVELOPMENT TEAM
+                    <span class="card-title-icon"></span>
+                </div>
+                
+                <div class="cyber-card-content" style="justify-content: center;">
+                    <div class="founder-profile">
+                        <div class="founder-avatar">EP</div>
+                        <div class="founder-details">
+                            <div class="founder-name">Edgar Joerenz B. Pondales</div>
+                            <div class="founder-title">Founder & Lead Developer</div>
+                            
+                            <div class="founder-quote">
+                                "The future of sustainable aquaculture lies at the intersection of precision robotics and intelligent, predictive data."
+                            </div>
+                            
+                            <div class="founder-bio">
+                                Edgar is the technical architect and lead developer behind the CERES system. With a deep specialization in hardware-software integration, embedded systems firmware, and full-stack automation, he directs the engineering roadmap for CERES hardware edge devices, AI navigation models, and cloud-connected telemetry suites.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Get In Touch -->
+            <div class="cyber-card premium-gradient-card accent-blue">
+                <div class="card-title">
+                    GET IN TOUCH
+                    <span class="card-title-icon blue"></span>
+                </div>
+                
+                <div class="cyber-card-content">
+                    <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 6px;">
+                        We are always open to collaborations, research partnerships, and academic deployment inquiries.
+                    </p>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <a href="mailto:edgarjoerenzbpondales@gmail.com" class="contact-link">
+                            <i class="fa-solid fa-envelope contact-icon"></i>
+                            <span>edgarjoerenzbpondales@gmail.com</span>
+                        </a>
+                        
+                        <a href="tel:+639305249235" class="contact-link">
+                            <i class="fa-solid fa-phone contact-icon"></i>
+                            <span>+63 930-524-9235</span>
+                        </a>
+                        
+                        <a href="https://github.com/edgarjoerenz/Ceres" target="_blank" class="contact-link">
+                            <i class="fa-brands fa-github contact-icon"></i>
+                            <span>GitHub Repository</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

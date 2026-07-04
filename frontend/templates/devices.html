@@ -1,0 +1,777 @@
+{% extends "base.html" %}
+
+{% block title %}Devices & Comms | Hardware Diagnostics{% endblock %}
+{% block page_title %}Devices & Communications{% endblock %}
+{% block page_subtitle %}Fleet Overview, Hardware Bus Diagnostics and Telemetry Link Status{% endblock %}
+
+{% block extra_head %}
+<style>
+    .main-wrapper {
+        overflow-y: auto !important;
+    }
+    /* GNC nav subpage fills all available height */
+    #devices-nav-subpage {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+    }
+    #devices-nav-subpage .grid-container {
+        flex: 1;
+        min-height: 0;
+        height: 100%;
+        align-items: stretch;
+    }
+    #devices-nav-subpage .col-flex {
+        height: 100%;
+    }
+    #devices-nav-subpage .cyber-card {
+        height: 100%;
+        min-height: 0;
+    }
+
+    /* ── GNC Panel Components ──────────────────────────────────────────── */
+    .gnc-section-label {
+        font-size: 0.58rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1.4px;
+        color: var(--primary);
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin-bottom: 7px;
+        opacity: 0.85;
+    }
+    .gnc-section-label::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: linear-gradient(90deg, rgba(16,185,129,0.25), transparent);
+    }
+    .gnc-section-label i { font-size: 0.55rem; }
+
+    .gnc-data-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+    }
+    .gnc-label {
+        font-size: 0.72rem;
+        color: var(--text-muted);
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        flex-shrink: 0;
+    }
+    .gnc-label i { width: 10px; text-align: center; font-size: 0.65rem; }
+    .gnc-value {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        text-align: right;
+    }
+    .gnc-value.accent-blue { color: var(--accent-blue); }
+
+    /* Sensor chips (2-col mini readout) */
+    .gnc-sensor-chip {
+        background: rgba(0,0,0,0.03);
+        border: 1px solid var(--border-color);
+        border-radius: 7px;
+        padding: 6px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        transition: border-color 0.15s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    .gnc-sensor-chip:hover { border-color: rgba(16,185,129,0.3); }
+    .gnc-sensor-chip.warn  { border-color: rgba(245,158,11,0.5); background: rgba(245,158,11,0.04); }
+    .gnc-sensor-chip.deadly { border-color: rgba(239,68,68,0.5); background: rgba(239,68,68,0.04); animation: flash-red 1.5s infinite; }
+    .gnc-chip-label {
+        font-size: 0.55rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--text-muted);
+    }
+    .gnc-chip-val {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        font-family: var(--font-mono);
+    }
+
+    /* Scrollable panel body */
+    #devices-nav-subpage .cyber-card > div:last-child::-webkit-scrollbar { width: 4px; }
+    #devices-nav-subpage .cyber-card > div:last-child::-webkit-scrollbar-track { background: transparent; }
+    #devices-nav-subpage .cyber-card > div:last-child::-webkit-scrollbar-thumb { background: rgba(16,185,129,0.2); border-radius: 2px; }
+
+    .tab-btn {
+        background: transparent;
+        color: var(--text-muted);
+        border: 1px solid var(--border-color);
+    }
+    .tab-btn:hover {
+        border-color: var(--primary);
+        color: var(--text-primary);
+    }
+    .tab-btn.active {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--primary);
+        border-color: var(--primary);
+        box-shadow: 0 0 8px rgba(16, 185, 129, 0.2);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Subpage Tabs Header -->
+<div class="subpage-tabs" style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; flex-shrink: 0;">
+    <button class="cyber-btn tab-btn active" id="tabDevicesMgmt" style="font-weight: 700; text-transform: uppercase; font-size: 0.8rem; padding: 8px 16px; transition: all 0.2s;">
+        <i class="fa-solid fa-gears" style="margin-right: 6px;"></i> Management & Diagnostics
+    </button>
+    <button class="cyber-btn tab-btn" id="tabDevicesNav" style="font-weight: 700; text-transform: uppercase; font-size: 0.8rem; padding: 8px 16px; transition: all 0.2s;">
+        <i class="fa-solid fa-compass" style="margin-right: 6px;"></i> GNC Navigation
+    </button>
+</div>
+
+<div id="devices-mgmt-subpage" class="subpage-content">
+
+<!-- Fleet Overview Row -->
+<div class="cyber-card accent-left" style="flex-shrink:0;margin-bottom:14px;">
+    <div class="card-title">
+        ACTIVE FLEET OVERVIEW
+        <div style="display:flex;gap:8px;align-items:center;">
+            <span style="font-size:0.75rem;color:var(--text-muted);" id="fleetCountLabel">3 vessels online</span>
+            <button class="cyber-btn btn-primary" id="btnAddVessel" style="font-size:0.75rem;padding:4px 10px;">
+                <i class="fa-solid fa-plus"></i> Add Vessel
+            </button>
+        </div>
+    </div>
+
+    <!-- System Health Summary (populated by JS) -->
+    <div id="systemHealthSummary" style="border:1px solid var(--border-color);border-radius:8px;overflow:hidden;margin-bottom:14px;background:rgba(0,0,0,0.03);">
+        <div style="color:var(--text-muted);font-size:0.8rem;padding:12px;">Loading system health…</div>
+    </div>
+
+    <div id="fleetCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;">
+        <!-- Injected by fleet telemetry via JS -->
+        <div style="color:var(--text-muted);font-size:0.85rem;padding:12px;">Loading fleet data…</div>
+    </div>
+</div>
+</div> <!-- Close #devices-mgmt-subpage -->
+
+<div id="devices-nav-subpage" class="subpage-content" style="display: none; flex-direction: column; flex: 1; min-height: 0;">
+
+<!-- GNC Control Row -->
+<div class="grid-container" style="flex: 1; min-height: 0; height: 100%; align-items: stretch; margin-bottom: 0;">
+    <!-- LEFT: Vessel Controls -->
+    <div class="col-lg-4 col-flex">
+        <div class="cyber-card" style="flex:1; display:flex; flex-direction:column; gap:0; overflow:hidden; padding:0;">
+
+            <!-- Card header -->
+            <div class="card-title" style="padding:10px 14px; flex-shrink:0; border-bottom:1px solid var(--border-color); margin-bottom:0;">
+                VESSEL CONTROLS &amp; GNC
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <span id="vesselOnlineDot" style="width:7px;height:7px;border-radius:50%;background:var(--primary);display:inline-block;box-shadow:0 0 5px var(--primary);"></span>
+                    <span id="vesselMode" style="font-size:0.72rem;font-weight:700;color:var(--primary);">STANDBY</span>
+                </div>
+            </div>
+
+            <!-- Scrollable body -->
+            <div style="flex:1; overflow-y:auto; padding:10px 14px; display:flex; flex-direction:column; gap:10px;">
+
+                <!-- §A Active Vessel Selector -->
+                <div style="background:var(--bg-app);border:1px solid var(--border-color);border-radius:7px;padding:6px 10px;display:flex;align-items:center;gap:8px;">
+                    <i class="fa-solid fa-satellite-dish" style="color:var(--primary);font-size:0.85rem;flex-shrink:0;"></i>
+                    <span style="font-size:0.68rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">Active Vessel</span>
+                    <select id="activeVesselSelect" class="form-input" style="flex:1;max-width:none;text-align:left;font-size:0.8rem;padding:3px 6px;background:transparent;border:none;outline:none;">
+                        <option value="CRSMD0001">CRSMD0001 (Primary)</option>
+                    </select>
+                    <span style="font-size:0.68rem;font-weight:700;color:var(--text-muted);">ID:&nbsp;<span id="activeVesselIdBadge" style="color:var(--primary);font-family:var(--font-mono);">CRSMD0001</span></span>
+                </div>
+
+                <!-- §B Mission Controls -->
+                <div>
+                    <div class="gnc-section-label"><i class="fa-solid fa-rocket"></i>Mission Commands</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                        <button class="cyber-btn btn-primary" id="btnAutoStart" style="justify-content:center;"><i class="fa-solid fa-play"></i> Lawnmower</button>
+                        <button class="cyber-btn" id="btnExplore" style="justify-content:center;"><i class="fa-solid fa-shuffle"></i> Explore</button>
+                        <button class="cyber-btn" id="btnGenerateAI" style="justify-content:center;border-color:#a78bfa;color:#a78bfa;"><i class="fa-solid fa-wand-magic-sparkles"></i> AI Paths</button>
+                        <button class="cyber-btn btn-alert" id="btnEmergencyStop" style="justify-content:center;"><i class="fa-solid fa-ban"></i> E-Stop</button>
+                        <button class="cyber-btn" id="btnRTH" style="justify-content:center;"><i class="fa-solid fa-house"></i> RTH</button>
+                        <button class="cyber-btn" id="btnDock" style="justify-content:center;border-color:var(--color-optimal);color:var(--color-optimal);"><i class="fa-solid fa-plug"></i> Dock</button>
+                    </div>
+                </div>
+
+                <!-- §C Live Position HUD -->
+                <div style="background:rgba(0,0,0,0.03);border:1px solid var(--border-color);border-radius:10px;padding:10px 12px;">
+                    <div class="gnc-section-label" style="margin-bottom:8px;"><i class="fa-solid fa-location-crosshairs"></i>Live Position</div>
+                    <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;">
+                        <!-- Coordinate readouts -->
+                        <div style="display:flex;flex-direction:column;gap:5px;">
+                            <div class="gnc-data-row">
+                                <span class="gnc-label"><i class="fa-solid fa-globe" style="color:var(--accent-blue);"></i>Latitude</span>
+                                <span class="gnc-value" id="navLat" style="font-family:var(--font-mono);font-size:0.78rem;">--</span>
+                            </div>
+                            <div class="gnc-data-row">
+                                <span class="gnc-label"><i class="fa-solid fa-globe" style="color:var(--accent-blue);"></i>Longitude</span>
+                                <span class="gnc-value" id="navLon" style="font-family:var(--font-mono);font-size:0.78rem;">--</span>
+                            </div>
+                            <div class="gnc-data-row">
+                                <span class="gnc-label"><i class="fa-solid fa-compass" style="color:var(--primary);"></i>Compass Heading</span>
+                                <span class="gnc-value" id="navHeading" style="font-family:var(--font-mono);">-- °</span>
+                            </div>
+                            <div class="gnc-data-row">
+                                <span class="gnc-label"><i class="fa-solid fa-gauge" style="color:var(--primary);"></i>Est. Speed</span>
+                                <span class="gnc-value" id="navSpeed">-- m/s</span>
+                            </div>
+                        </div>
+                        <!-- Compass rose -->
+                        <div style="flex-shrink:0;">
+                            <svg id="compassRose" viewBox="0 0 80 80" style="width:72px;height:72px;">
+                                <!-- Outer ring -->
+                                <circle cx="40" cy="40" r="36" fill="none" stroke="var(--border-color)" stroke-width="1.5"/>
+                                <circle cx="40" cy="40" r="36" fill="rgba(16,185,129,0.03)"/>
+                                <!-- Cardinal ticks -->
+                                <line x1="40" y1="5" x2="40" y2="12" stroke="var(--primary)" stroke-width="1.5"/>
+                                <line x1="40" y1="68" x2="40" y2="75" stroke="var(--border-color)" stroke-width="1"/>
+                                <line x1="5" y1="40" x2="12" y2="40" stroke="var(--border-color)" stroke-width="1"/>
+                                <line x1="68" y1="40" x2="75" y2="40" stroke="var(--border-color)" stroke-width="1"/>
+                                <!-- Cardinal labels -->
+                                <text x="40" y="4" text-anchor="middle" font-size="6" fill="var(--primary)" font-weight="700">N</text>
+                                <text x="40" y="79" text-anchor="middle" font-size="5" fill="var(--text-muted)">S</text>
+                                <text x="2" y="42" text-anchor="middle" font-size="5" fill="var(--text-muted)">W</text>
+                                <text x="78" y="42" text-anchor="middle" font-size="5" fill="var(--text-muted)">E</text>
+                                <!-- Needle (rotated by JS via transform) -->
+                                <g id="compassNeedle" style="transform-origin:40px 40px;transition:transform 0.5s ease;">
+                                    <polygon points="40,14 37,40 40,48 43,40" fill="var(--primary)" opacity="0.9"/>
+                                    <polygon points="40,48 37,40 40,62 43,40" fill="var(--text-muted)" opacity="0.5"/>
+                                    <circle cx="40" cy="40" r="3" fill="var(--bg-card)" stroke="var(--primary)" stroke-width="1.5"/>
+                                </g>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- §D Navigation Status -->
+                <div>
+                    <div class="gnc-section-label"><i class="fa-solid fa-route"></i>Navigation Status</div>
+                    <div style="background:rgba(0,0,0,0.03);border:1px solid var(--border-color);border-radius:8px;overflow:hidden;">
+                        <div class="gnc-data-row" style="padding:5px 10px;border-bottom:1px dashed rgba(148,163,184,0.12);">
+                            <span class="gnc-label">Target Waypoint</span>
+                            <span class="gnc-value" id="navTarget" style="font-family:var(--font-mono);font-size:0.72rem;">No target</span>
+                        </div>
+                        <div class="gnc-data-row" style="padding:5px 10px;border-bottom:1px dashed rgba(148,163,184,0.12);">
+                            <span class="gnc-label">Distance to WP</span>
+                            <span class="gnc-value accent-blue" id="navDist">0.0 <span style="font-size:0.6rem;font-weight:400;">m</span></span>
+                        </div>
+                        <div class="gnc-data-row" style="padding:5px 10px;border-bottom:1px dashed rgba(148,163,184,0.12);">
+                            <span class="gnc-label">Heading Deviation</span>
+                            <span class="gnc-value" id="navHeadingDev">0.0°</span>
+                        </div>
+                        <div class="gnc-data-row" style="padding:5px 10px;">
+                            <span class="gnc-label">Mission Coverage</span>
+                            <span class="gnc-value" id="navCoverage">-- %</span>
+                        </div>
+                    </div>
+                    <!-- Coverage progress bar -->
+                    <div style="margin-top:6px;">
+                        <div style="height:4px;background:var(--border-color);border-radius:2px;overflow:hidden;">
+                            <div id="coverageBar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--primary),var(--accent-blue));border-radius:2px;transition:width 0.5s ease;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- §E Live Water Quality (Arc Gauges) -->
+                <div>
+                    <div class="gnc-section-label"><i class="fa-solid fa-droplet"></i>Live Water Quality</div>
+
+                    <!-- Arc gauge CSS scoped for devices page -->
+                    <style>
+                    .gnc-arc-gauge {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 3px;
+                        background: rgba(0,0,0,0.14);
+                        border: 1px solid rgba(255,255,255,0.06);
+                        border-radius: 10px;
+                        padding: 8px 5px 6px;
+                        transition: border-color 0.2s;
+                        position: relative;
+                        overflow: hidden;
+                    }
+                    .gnc-arc-gauge::before {
+                        content: '';
+                        position: absolute;
+                        inset: 0;
+                        background: radial-gradient(ellipse at 50% 0%, rgba(16,185,129,0.05), transparent 70%);
+                        pointer-events: none;
+                    }
+                    .gnc-arc-gauge:hover { border-color: rgba(16,185,129,0.28); }
+                    .gnc-arc-gauge.warn  { border-color: rgba(245,158,11,0.35); background: rgba(245,158,11,0.06); }
+                    .gnc-arc-gauge.deadly { border-color: rgba(239,68,68,0.45); background: rgba(239,68,68,0.08); animation: flash-red 1.5s infinite; }
+                    .gnc-arc-title { font-size: 0.44rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); text-align: center; }
+                    .gnc-arc-val  { font-size: 0.88rem; font-weight: 700; line-height: 1; text-align: center; }
+                    .gnc-arc-unit { font-size: 0.38rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+                    .gnc-arc-badge {
+                        font-size: 0.38rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+                        padding: 1px 5px; border-radius: 3px;
+                        background: rgba(16,185,129,0.15); color: #34d399;
+                        transition: background 0.2s, color 0.2s;
+                    }
+                    .gnc-arc-badge.warn   { background: rgba(245,158,11,0.15); color: #fbbf24; }
+                    .gnc-arc-badge.deadly { background: rgba(239,68,68,0.15);  color: #f87171; }
+                    </style>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+
+                        <!-- HS NH3 -->
+                        <div class="gnc-arc-gauge" id="gnc-chip-hs">
+                            <div class="gnc-arc-title">Headspace NH₃</div>
+                            <div style="position:relative;width:70px;height:70px;">
+                                <svg viewBox="0 0 80 80" style="width:70px;height:70px;filter:drop-shadow(0 0 5px rgba(16,185,129,0.2))">
+                                    <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="7"/>
+                                    <circle cx="40" cy="40" r="32" fill="none" stroke="#10b981" stroke-width="7"
+                                        stroke-linecap="round" stroke-dasharray="201.1" stroke-dashoffset="80"
+                                        style="transform:rotate(-90deg);transform-origin:40px 40px;transition:stroke-dashoffset 0.6s ease,stroke 0.4s ease;"
+                                        id="gncArcHS"/>
+                                </svg>
+                                <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                                    <span class="gnc-arc-val" id="gnc-hs" style="color:#10b981;">--</span>
+                                    <span class="gnc-arc-unit">ppm</span>
+                                </div>
+                            </div>
+                            <span class="gnc-arc-badge" id="gncStatHS">OPTIMAL</span>
+                        </div>
+
+                        <!-- pH -->
+                        <div class="gnc-arc-gauge" id="gnc-chip-ph">
+                            <div class="gnc-arc-title">pH Level</div>
+                            <div style="position:relative;width:70px;height:70px;">
+                                <svg viewBox="0 0 80 80" style="width:70px;height:70px;filter:drop-shadow(0 0 5px rgba(56,189,248,0.2))">
+                                    <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="7"/>
+                                    <circle cx="40" cy="40" r="32" fill="none" stroke="#38bdf8" stroke-width="7"
+                                        stroke-linecap="round" stroke-dasharray="201.1" stroke-dashoffset="100"
+                                        style="transform:rotate(-90deg);transform-origin:40px 40px;transition:stroke-dashoffset 0.6s ease,stroke 0.4s ease;"
+                                        id="gncArcPH"/>
+                                </svg>
+                                <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                                    <span class="gnc-arc-val" id="gnc-ph" style="color:#38bdf8;">--</span>
+                                    <span class="gnc-arc-unit">pH</span>
+                                </div>
+                            </div>
+                            <span class="gnc-arc-badge" id="gncStatPH">OPTIMAL</span>
+                        </div>
+
+                        <!-- Temp -->
+                        <div class="gnc-arc-gauge" id="gnc-chip-temp">
+                            <div class="gnc-arc-title">Temperature</div>
+                            <div style="position:relative;width:70px;height:70px;">
+                                <svg viewBox="0 0 80 80" style="width:70px;height:70px;filter:drop-shadow(0 0 5px rgba(245,158,11,0.2))">
+                                    <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="7"/>
+                                    <circle cx="40" cy="40" r="32" fill="none" stroke="#f59e0b" stroke-width="7"
+                                        stroke-linecap="round" stroke-dasharray="201.1" stroke-dashoffset="70"
+                                        style="transform:rotate(-90deg);transform-origin:40px 40px;transition:stroke-dashoffset 0.6s ease,stroke 0.4s ease;"
+                                        id="gncArcTemp"/>
+                                </svg>
+                                <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                                    <span class="gnc-arc-val" id="gnc-temp" style="color:#f59e0b;">--</span>
+                                    <span class="gnc-arc-unit">°C</span>
+                                </div>
+                            </div>
+                            <span class="gnc-arc-badge" id="gncStatTemp">OPTIMAL</span>
+                        </div>
+
+                        <!-- NH₃ -->
+                        <div class="gnc-arc-gauge" id="gnc-chip-nh3">
+                            <div class="gnc-arc-title">Ammonia NH₃</div>
+                            <div style="position:relative;width:70px;height:70px;">
+                                <svg viewBox="0 0 80 80" style="width:70px;height:70px;filter:drop-shadow(0 0 5px rgba(16,185,129,0.2))">
+                                    <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="7"/>
+                                    <circle cx="40" cy="40" r="32" fill="none" stroke="#10b981" stroke-width="7"
+                                        stroke-linecap="round" stroke-dasharray="201.1" stroke-dashoffset="195"
+                                        style="transform:rotate(-90deg);transform-origin:40px 40px;transition:stroke-dashoffset 0.6s ease,stroke 0.4s ease;"
+                                        id="gncArcNH3"/>
+                                </svg>
+                                <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                                    <span class="gnc-arc-val" id="gnc-nh3" style="color:#10b981;font-size:0.72rem;">--</span>
+                                    <span class="gnc-arc-unit">mg/L</span>
+                                </div>
+                            </div>
+                            <span class="gnc-arc-badge" id="gncStatNH3">SAFE</span>
+                        </div>
+
+                    </div>
+
+                    <!-- GNC arc gauge updater (devices page — separate from dashboard) -->
+                    <script>
+                    (function() {
+                        const CIRC = 201.1; // 2*pi*32
+                        function updateGncArc(arcId, valId, statId, chipId, value, min, max, unit, zones) {
+                            const arc    = document.getElementById(arcId);
+                            const valEl  = document.getElementById(valId);
+                            const statEl = document.getElementById(statId);
+                            const chipEl = document.getElementById(chipId);
+                            if (!arc || value == null) return;
+                            const pct = Math.max(0, Math.min(1, (value - min) / (max - min)));
+                            arc.style.strokeDashoffset = (CIRC * (1 - pct)).toFixed(1);
+                            let zone = 'optimal', color = '#10b981';
+                            if (zones) {
+                                if (zones.deadly_high != null && value > zones.deadly_high) { zone = 'deadly'; color = '#ef4444'; }
+                                else if (zones.warn_high != null && value > zones.warn_high) { zone = 'warn'; color = '#f59e0b'; }
+                                else if (zones.deadly_low != null && value < zones.deadly_low) { zone = 'deadly'; color = '#ef4444'; }
+                                else if (zones.warn_low  != null && value < zones.warn_low)  { zone = 'warn';  color = '#f59e0b'; }
+                            }
+                            arc.style.stroke = color;
+                            if (valEl) { valEl.textContent = value.toFixed(unit === 'mg/L' && value < 0.1 ? 4 : 2); valEl.style.color = color; }
+                            if (statEl) {
+                                statEl.textContent = zone === 'optimal' ? 'OPTIMAL' : zone === 'warn' ? 'WARNING' : 'CRITICAL';
+                                statEl.className = 'gnc-arc-badge' + (zone === 'warn' ? ' warn' : zone === 'deadly' ? ' deadly' : '');
+                            }
+                            if (chipEl) {
+                                chipEl.classList.remove('warn', 'deadly');
+                                if (zone !== 'optimal') chipEl.classList.add(zone);
+                            }
+                        }
+                        // Expose for main.js to call each telemetry tick
+                        window.updateGncArcGauges = function(d) {
+                            if (d.hs_nh3 != null) updateGncArc('gncArcHS',   'gnc-hs',   'gncStatHS',   'gnc-chip-hs',   d.hs_nh3,   0, 50,  'ppm', { warn_high: 10.0, deadly_high: 25.0 });
+                            if (d.ph   != null) updateGncArc('gncArcPH',   'gnc-ph',   'gncStatPH',   'gnc-chip-ph',   d.ph,   0, 14,  'pH',   { warn_low: 6.0, deadly_low: 4.0, warn_high: 8.5, deadly_high: 9.5 });
+                            if (d.temp != null) updateGncArc('gncArcTemp', 'gnc-temp', 'gncStatTemp', 'gnc-chip-temp', d.temp, 15, 40,  '°C',   { warn_low: 20, deadly_low: 15, warn_high: 32, deadly_high: 35 });
+                            if (d.nh3  != null) updateGncArc('gncArcNH3',  'gnc-nh3',  'gncStatNH3',  'gnc-chip-nh3',  d.nh3,  0, 0.1, 'mg/L', { warn_high: 0.02, deadly_high: 0.05 });
+                        };
+                    })();
+                    </script>
+                </div>
+
+                <!-- §F Motor Actuation -->
+                <div>
+                    <div class="gnc-section-label"><i class="fa-solid fa-gear"></i>Motor Actuation</div>
+                    <div style="background:rgba(0,0,0,0.03);border:1px solid var(--border-color);border-radius:8px;overflow:hidden;">
+                        <div class="gnc-data-row" style="padding:5px 10px;border-bottom:1px dashed rgba(148,163,184,0.12);">
+                            <span class="gnc-label"><i class="fa-solid fa-circle-left" style="font-size:0.7rem;"></i>&nbsp;Port Motor PWM</span>
+                            <span class="gnc-value accent-blue" id="pwmPort">1500 <span style="font-size:0.6rem;font-weight:400;">µs</span></span>
+                        </div>
+                        <div class="gnc-data-row" style="padding:5px 10px;border-bottom:1px dashed rgba(148,163,184,0.12);">
+                            <span class="gnc-label"><i class="fa-solid fa-circle-right" style="font-size:0.7rem;"></i>&nbsp;Starboard PWM</span>
+                            <span class="gnc-value accent-blue" id="pwmStbd">1500 <span style="font-size:0.6rem;font-weight:400;">µs</span></span>
+                        </div>
+                        <!-- PWM visual bars -->
+                        <div style="padding:6px 10px;display:flex;flex-direction:column;gap:4px;">
+                            <div style="display:flex;align-items:center;gap:6px;">
+                                <span style="font-size:0.58rem;color:var(--text-muted);width:18px;text-align:right;">P</span>
+                                <div style="flex:1;height:5px;background:var(--border-color);border-radius:2px;overflow:hidden;position:relative;">
+                                    <div id="pwmPortBar" style="position:absolute;top:0;left:50%;height:100%;width:0%;background:var(--accent-blue);border-radius:2px;transition:all 0.2s;"></div>
+                                </div>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:6px;">
+                                <span style="font-size:0.58rem;color:var(--text-muted);width:18px;text-align:right;">S</span>
+                                <div style="flex:1;height:5px;background:var(--border-color);border-radius:2px;overflow:hidden;position:relative;">
+                                    <div id="pwmStbdBar" style="position:absolute;top:0;left:50%;height:100%;width:0%;background:var(--accent-blue);border-radius:2px;transition:all 0.2s;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- §G Battery -->
+                <div style="background:rgba(0,0,0,0.03);border:1px solid var(--border-color);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:10px;">
+                    <i class="fa-solid fa-battery-three-quarters" id="gncBattIcon" style="color:var(--primary);font-size:1rem;"></i>
+                    <div style="flex:1;">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                            <span style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);">Battery</span>
+                            <span style="font-size:0.78rem;font-weight:700;color:var(--primary);" id="gncBattVal">-- %</span>
+                        </div>
+                        <div style="height:5px;background:var(--border-color);border-radius:3px;overflow:hidden;">
+                            <div id="gncBattBar" style="height:100%;width:0%;background:linear-gradient(90deg,#ef4444,#f59e0b,var(--primary));border-radius:3px;transition:width 0.4s ease;"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- /scrollable body -->
+        </div>
+    </div>
+    
+    <!-- RIGHT: Navigation Map -->
+    <div class="col-lg-8 col-flex">
+        <div class="cyber-card flex-fill" style="padding:14px; display:flex; flex-direction:column;">
+            <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+                <span>NAVIGATION MAP & GNC CONTROL</span>
+                <span style="font-size:0.8rem;color:var(--text-muted);font-weight:500;">
+                    MODE: <span id="vesselMode" style="color:var(--primary);font-weight:700;">STANDBY</span>
+                </span>
+            </div>
+            <div id="map-wrapper" style="flex:1; display:flex; position:relative; min-height:0;">
+                <div id="leaflet-map" data-mode="navigation" style="flex:1; height:100%; border-radius:8px;"></div>
+                <!-- Primary map controls -->
+                <div class="map-control-overlay">
+                    <button class="cyber-btn btn-primary" id="toggleMapLayers"><i class="fa-solid fa-satellite"></i> Satellite</button>
+                    <button class="cyber-btn" id="clearWaypoints"><i class="fa-solid fa-xmark"></i> Clear Path</button>
+                    <button class="cyber-btn" id="btnPlaceStation"><i class="fa-solid fa-charging-station"></i> Place Station</button>
+                    <button class="cyber-btn" id="btnDrawMode"><i class="fa-solid fa-pen-to-square"></i> Draw Area</button>
+                    <button class="cyber-btn" id="btnSaveAreaPath"><i class="fa-solid fa-floppy-disk"></i> Save Area & Path</button>
+                    <button class="cyber-btn btn-alert" id="btnDeleteArea" style="display:none;"><i class="fa-solid fa-trash-can"></i> Delete Area</button>
+                </div>
+                <!-- Draw mode sub-controls -->
+                <div id="drawControls" style="display:none;position:absolute;top:12px;left:12px;z-index:10;flex-direction:column;gap:6px;background:var(--bg-card);border:1px solid var(--border-color);border-radius:8px;padding:10px;box-shadow:var(--shadow-md);min-width:140px;">
+                    <div style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">Draw Mode Active</div>
+                    <div style="font-size:0.8rem;color:var(--text-muted);">Click map to add vertices</div>
+                    <div style="font-size:0.82rem;color:var(--primary);font-weight:600;" id="drawVertexCount">0 pts</div>
+                    <button class="cyber-btn" id="btnUndoVertex" style="font-size:0.75rem;padding:5px 10px;"><i class="fa-solid fa-rotate-left"></i> Undo</button>
+                    <button class="cyber-btn btn-primary" id="btnFinishDraw" style="font-size:0.75rem;padding:5px 10px;"><i class="fa-solid fa-check"></i> Finish & Apply</button>
+                    <button class="cyber-btn btn-alert" id="btnClearDraw" style="font-size:0.75rem;padding:5px 10px;"><i class="fa-solid fa-trash"></i> Clear</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div> <!-- Close #devices-nav-subpage -->
+
+<div id="devices-diag-subpage" class="subpage-content">
+
+<!-- Diagnostics & Comms Row -->
+<div class="grid-container" style="flex: none; min-height: auto;">
+
+    <!-- Network & Comms -->
+    <div class="col-lg-6 col-flex">
+        <div class="cyber-card flex-fill accent-blue">
+            <div class="card-title">COMMUNICATIONS & TELEMETRY LINKS<div class="card-title-icon blue"></div></div>
+            <div class="metric-row">
+                <span class="metric-label">Primary Link (Wi-Fi)</span>
+                <span class="status-badge optimal" id="wifiStatus">CONNECTED</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">Wi-Fi Signal Strength (RSSI)</span>
+                <span class="metric-value">-64 <span class="metric-unit">dBm</span></span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">Failover GSM Link (SMS/GPRS)</span>
+                <span class="status-badge optimal" style="background:rgba(56,189,248,0.15);color:#38bdf8;">INITIALIZED</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">Cellular Signal Quality (CSQ)</span>
+                <span class="metric-value">22 / 31 <span class="metric-unit">dB</span></span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">Heartbeat Ping Latency</span>
+                <span class="metric-value">42 <span class="metric-unit">ms</span></span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">WebSocket Clients Connected</span>
+                <span class="metric-value" id="wsClientCount">1</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Peripheral Bus -->
+    <div class="col-lg-6 col-flex">
+        <div class="cyber-card flex-fill">
+            <div class="card-title">PERIPHERAL BUS DIAGNOSTICS<div class="card-title-icon"></div></div>
+            <div class="cyber-table-container" style="flex:1;overflow-y:auto;">
+                <table class="cyber-table">
+                    <thead>
+                        <tr>
+                            <th>Device Peripheral</th>
+                            <th>Bus Interface</th>
+                            <th>Address</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>pH-4502C Sensor</td><td>Analog ADC1_CH6</td><td>Pin 34</td><td><span class="status-badge optimal">OK</span></td></tr>
+                        <tr><td>Battery Voltage Sensor</td><td>Analog ADC1_CH7</td><td>Pin 35</td><td><span class="status-badge optimal">OK</span></td></tr>
+                        <tr><td>DS18B20 Temp Probe</td><td>OneWire Bus</td><td>Pin 4</td><td><span class="status-badge optimal">OK</span></td></tr>
+                        <tr><td>MQ137 Gas Sensor</td><td>Analog ADC1_CH0</td><td>Pin 36</td><td><span class="status-badge optimal">OK</span></td></tr>
+                        <tr><td>QMC5883L Compass</td><td>I2C Bus</td><td>0x0D</td><td><span class="status-badge optimal">OK</span></td></tr>
+                        <tr><td>MPU-6050 IMU Gyro</td><td>I2C Bus</td><td>0x68</td><td><span class="status-badge optimal">OK</span></td></tr>
+                        <tr><td>mmWave Radar Probe</td><td>UART Serial3</td><td>Pin 32/33</td><td><span class="status-badge optimal">OK</span></td></tr>
+                        <tr><td>Port/Stbd Prop ESCs</td><td>LEDC PWM Channels</td><td>Pin 25/14</td><td><span class="status-badge optimal">OK</span></td></tr>
+                        <tr><td>NEO-6M GPS Module</td><td>UART Serial2</td><td>Pin 16/17</td><td><span class="status-badge optimal">OK</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+</div> <!-- Close #devices-diag-subpage -->
+
+<!-- ══ ADD VESSEL MODAL ════════════════════════════════════════════════════ -->
+<div id="addVesselModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.55);backdrop-filter:blur(3px);align-items:center;justify-content:center;">
+    <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:12px;padding:24px;width:min(450px,95vw);box-shadow:var(--shadow-md);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+            <div>
+                <div style="font-size:1rem;font-weight:700;color:var(--text-primary);">Add New Fleet Vessel</div>
+                <div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px;">Register a new simulated autonomous craft</div>
+            </div>
+            <button id="closeAddModal" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:var(--text-muted);padding:4px 8px;">✕</button>
+        </div>
+        
+        <div style="display:flex;flex-direction:column;gap:12px;">
+            <div>
+                <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:4px;">DEVICE ID (e.g. CRSMD0004 or CRSCS0004)</label>
+                <input type="text" id="addVesselId" placeholder="CRSMD0004" style="width:100%;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-size:0.85rem;font-family:var(--font-mono);">
+            </div>
+            <div>
+                <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:4px;">DEVICE TYPE</label>
+                <select id="addDeviceType" style="width:100%;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-size:0.85rem;outline:none;">
+                    <option value="vessel">Autonomous Vessel</option>
+                    <option value="charging_station">Static Charging Station</option>
+                </select>
+            </div>
+            <div>
+                <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:4px;">ACTIVE STATUS</label>
+                <select id="addDeviceStatus" style="width:100%;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-size:0.85rem;outline:none;">
+                    <option value="active">Active (Online)</option>
+                    <option value="inactive">Inactive (Offline)</option>
+                </select>
+            </div>
+            <div>
+                <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:4px;">CODENAME / NAME</label>
+                <input type="text" id="addVesselName" placeholder="Lagoon Swimmer II" style="width:100%;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-size:0.85rem;">
+            </div>
+            <div>
+                <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:4px;">PRIMARY WI-FI SSID</label>
+                <input type="text" id="addVesselWifi" placeholder="Ceres_Local_AP" style="width:100%;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-size:0.85rem;">
+            </div>
+            <div>
+                <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:4px;">GSM FAILOVER PHONE NUMBER</label>
+                <input type="text" id="addVesselPhone" placeholder="+63 917 123 4567" style="width:100%;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-size:0.85rem;font-family:var(--font-mono);">
+            </div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
+            <button class="cyber-btn" id="btnCancelAdd" style="font-size:0.8rem;padding:6px 12px;">Cancel</button>
+            <button class="cyber-btn btn-primary" id="btnSubmitAdd" style="font-size:0.8rem;padding:6px 12px;background:var(--primary);border-color:var(--primary);">Register Vessel</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══ EDIT VESSEL MODAL ═══════════════════════════════════════════════════ -->
+<div id="editVesselModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.55);backdrop-filter:blur(3px);align-items:center;justify-content:center;">
+    <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:12px;padding:24px;width:min(450px,95vw);box-shadow:var(--shadow-md);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+            <div>
+                <div style="font-size:1rem;font-weight:700;color:var(--text-primary);">Configure Vessel: <span id="editVesselIdTitle" style="color:var(--primary);font-family:var(--font-mono);">CRSMD0001</span></div>
+                <div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px;">Modify active device hardware attributes</div>
+            </div>
+            <button id="closeEditModal" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:var(--text-muted);padding:4px 8px;">✕</button>
+        </div>
+        
+        <input type="hidden" id="editVesselId">
+
+        <div style="display:flex;flex-direction:column;gap:12px;">
+            <div>
+                <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:4px;">DEVICE TYPE</label>
+                <select id="editDeviceType" disabled style="width:100%;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-color);border-radius:6px;color:var(--text-muted);font-size:0.85rem;outline:none;cursor:not-allowed;">
+                    <option value="vessel">Autonomous Vessel</option>
+                    <option value="charging_station">Static Charging Station</option>
+                </select>
+            </div>
+            <div>
+                <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:4px;">ACTIVE STATUS</label>
+                <select id="editDeviceStatus" style="width:100%;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-size:0.85rem;outline:none;">
+                    <option value="active">Active (Online)</option>
+                    <option value="inactive">Inactive (Offline)</option>
+                </select>
+            </div>
+            <div>
+                <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:4px;">CODENAME / NAME</label>
+                <input type="text" id="editVesselName" style="width:100%;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-size:0.85rem;">
+            </div>
+            <div>
+                <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:4px;">PRIMARY WI-FI SSID</label>
+                <input type="text" id="editVesselWifi" style="width:100%;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-size:0.85rem;">
+            </div>
+            <div>
+                <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:4px;">GSM FAILOVER PHONE NUMBER</label>
+                <input type="text" id="editVesselPhone" style="width:100%;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-size:0.85rem;font-family:var(--font-mono);">
+            </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:20px;">
+            <button class="cyber-btn" id="btnDeleteVessel" style="font-size:0.8rem;padding:6px 12px;background:rgba(239,68,68,0.15);color:#ef4444;border-color:#ef4444;">
+                <i class="fa-solid fa-trash-can"></i> Delete
+            </button>
+            <div style="display:flex;gap:10px;">
+                <button class="cyber-btn" id="btnCancelEdit" style="font-size:0.8rem;padding:6px 12px;">Cancel</button>
+                <button class="cyber-btn btn-primary" id="btnSubmitEdit" style="font-size:0.8rem;padding:6px 12px;background:var(--primary);border-color:var(--primary);">Save Config</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══ AI PATH MODAL ═══════════════════════════════════════════════════════ -->
+<div id="aiPathModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.55);backdrop-filter:blur(3px);align-items:center;justify-content:center;">
+    <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:12px;padding:28px;width:min(840px,95vw);max-height:85vh;overflow-y:auto;box-shadow:var(--shadow-md);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <div>
+                <h3 style="margin:0;font-size:1.25rem;font-weight:700;color:var(--text-primary);letter-spacing:0.5px;text-transform:uppercase;">AI Path Planning Strategies</h3>
+                <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">
+                    Device: <span id="modalVesselLabel" style="color:var(--primary);font-weight:700;">CRSMD0001</span>
+                </div>
+            </div>
+            <button class="cyber-btn" id="closeAiModal" style="font-size:0.85rem;padding:6px 12px;"><i class="fa-solid fa-xmark"></i> Close</button>
+        </div>
+        
+        <!-- Strategy Cards Container -->
+        <div id="aiPathCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;">
+            <!-- Strategy options will be dynamically injected here -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/map.js?v=1.0.6"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const tabMgmt = document.getElementById('tabDevicesMgmt');
+    const tabNav = document.getElementById('tabDevicesNav');
+    const subpageMgmt = document.getElementById('devices-mgmt-subpage');
+    const subpageDiag = document.getElementById('devices-diag-subpage');
+    const subpageNav = document.getElementById('devices-nav-subpage');
+
+    if (tabMgmt && tabNav && subpageMgmt && subpageDiag && subpageNav) {
+        tabMgmt.addEventListener('click', () => {
+            tabMgmt.classList.add('active');
+            tabNav.classList.remove('active');
+            subpageMgmt.style.display = 'block';
+            subpageDiag.style.display = 'block';
+            subpageNav.style.display = 'none';
+        });
+
+        tabNav.addEventListener('click', () => {
+            tabNav.classList.add('active');
+            tabMgmt.classList.remove('active');
+            subpageMgmt.style.display = 'none';
+            subpageDiag.style.display = 'none';
+            subpageNav.style.display = 'flex';
+            // Lock main-wrapper so nav map can fill height
+            const mw = document.querySelector('.main-wrapper');
+            if (mw) mw.style.overflow = 'hidden';
+
+            // Invalidate Leaflet map size so tiles render correctly
+            if (window.map) {
+                setTimeout(() => {
+                    window.map.invalidateSize();
+                }, 50);
+            }
+        });
+
+        tabMgmt.addEventListener('click', () => {
+            // Restore scroll when going back to mgmt tab
+            const mw = document.querySelector('.main-wrapper');
+            if (mw) mw.style.overflow = '';
+        });
+    }
+});
+</script>
+{% endblock %}

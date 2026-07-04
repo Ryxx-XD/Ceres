@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CERES | {% block title %}Dashboard{% endblock %}</title>
+    <meta name="description" content="CERES — Autonomous Fish Pond Monitoring & Navigation. Precision GNC and Tilapia habitability management.">
+
+    <link rel="stylesheet" href="/static/css/style.css?v=1.1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        // Kiosk mode launcher - open in a separate window and lock to fullscreen
+        (function() {
+            if (window.name !== 'ceres_kiosk' && !window.location.search.includes('no_kiosk')) {
+                const w = screen.availWidth;
+                const h = screen.availHeight;
+                const kioskWin = window.open(window.location.href, 'ceres_kiosk', `width=${w},height=${h},top=0,left=0,fullscreen=yes,scrollbars=yes,status=no,toolbar=no,menubar=no,location=no`);
+                if (kioskWin) {
+                    document.write(`
+                        <html lang="en">
+                        <head>
+                            <meta charset="UTF-8">
+                            <title>Ceres Launcher</title>
+                            <link rel="stylesheet" href="/static/css/style.css?v=1.1.0">
+                            <style>
+                                body { display: flex; align-items: center; justify-content: center; height: 100vh; background: #0b1120; font-family: 'Inter', sans-serif; text-align: center; }
+                                .launcher-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 40px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); max-width: 480px; }
+                                h1 { color: #10b981; font-size: 1.5rem; margin-bottom: 12px; font-weight: 800; }
+                                p { color: #94a3b8; font-size: 0.95rem; line-height: 1.6; margin-bottom: 24px; }
+                                .btn-launch { padding: 12px 24px; background: #10b981; border: none; color: white; border-radius: 6px; font-weight: 700; cursor: pointer; transition: background 0.2s; font-size: 0.9rem; }
+                                .btn-launch:hover { background: #059669; }
+                            </style>
+                        </head>
+                        <body class="theme-dark">
+                            <div class="launcher-card">
+                                <h1>CERES LAUNCHED</h1>
+                                <p>The console has been opened in a separate, dedicated kiosk window. You may close this tab, or click below to focus/re-launch it.</p>
+                                <button class="btn-launch" onclick="window.open('${window.location.pathname + window.location.search}', 'ceres_kiosk')">Re-launch Console</button>
+                            </div>
+                        </body>
+                        </html>
+                    `);
+                    document.close();
+                    window.stop();
+                }
+            }
+
+            // If we are in the top-level of the kiosk window, render the fullscreen lock shell
+            if (window.name === 'ceres_kiosk' && window.self === window.top) {
+                document.write(`
+                    <html lang="en">
+                    <head>
+                        <meta charset="UTF-8">
+                        <title>Ceres Console Shell</title>
+                        <link rel="stylesheet" href="/static/css/style.css?v=1.0.9">
+                        <style>
+                            body { margin: 0; padding: 0; height: 100vh; background: #0b1120; font-family: 'Inter', sans-serif; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+                            .shell-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 40px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); max-width: 480px; text-align: center; }
+                            h1 { color: #10b981; font-size: 1.5rem; margin-bottom: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+                            p { color: #94a3b8; font-size: 0.95rem; line-height: 1.6; margin-bottom: 24px; }
+                            .btn-enter { padding: 12px 24px; background: #10b981; border: none; color: white; border-radius: 6px; font-weight: 700; cursor: pointer; transition: background 0.2s; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; }
+                            .btn-enter:hover { background: #059669; }
+                            iframe { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; border: none; z-index: 9999; }
+                        </style>
+                    </head>
+                    <body class="theme-dark">
+                        <div class="shell-card" id="shellCard">
+                            <h1>Ceres Console</h1>
+                            <p>System is ready. Press below to lock the interface into fullscreen kiosk mode and start the telemetry console.</p>
+                            <button class="btn-enter" id="btnEnterShell">Lock & Initialize Console</button>
+                        </div>
+                        <iframe id="kioskIframe" src="${window.location.href}" allow="fullscreen"></iframe>
+                        
+                        <script>
+                            const btn = document.getElementById('btnEnterShell');
+                            const card = document.getElementById('shellCard');
+                            const iframe = document.getElementById('kioskIframe');
+                            
+                            function lockAndStart() {
+                                if (!document.fullscreenElement) {
+                                    document.documentElement.requestFullscreen()
+                                        .then(() => {
+                                            card.style.display = 'none';
+                                            iframe.style.display = 'block';
+                                        })
+                                        .catch(err => {
+                                            console.warn("Fullscreen request failed:", err);
+                                            card.style.display = 'none';
+                                            iframe.style.display = 'block';
+                                        });
+                                } else {
+                                    card.style.display = 'none';
+                                    iframe.style.display = 'block';
+                                }
+                            }
+                            
+                            btn.addEventListener('click', lockAndStart);
+                            
+                            document.addEventListener('fullscreenchange', () => {
+                                if (!document.fullscreenElement) {
+                                    card.style.display = 'block';
+                                    iframe.style.display = 'none';
+                                }
+                            });
+                        <\/script>
+                    </body>
+                    </html>
+                `);
+                document.close();
+                window.stop();
+            }
+        })();
+    </script>
+
+    {% block extra_head %}{% endblock %}
+
+    <!-- ── Anti-flash theme guard ────────────────────────────────────────
+         Runs synchronously in <head> before first paint so the correct
+         background is applied before any element is rendered.
+         document.write() is intentional here — it injects a blocking
+         <style> tag into the parse stream, guaranteeing zero flash.
+    ──────────────────────────────────────────────────────────────────── -->
+    <script>
+    (function () {
+        var t = localStorage.getItem('ceres-theme') || 'dark';
+        if (t === 'dark') {
+            document.write('<style id="_theme_guard">html,body{background-color:#0b1120!important;color:#f1f5f9!important;}</style>');
+        }
+        // Pre-set the class on <html> so CSS vars resolve before body parses
+        document.documentElement.className = 'theme-' + t;
+    })();
+    </script>
+</head>
+<body>
+    <!-- Sync body class with what <html> already has (set in <head>) -->
+    <script>
+        (function() {
+            var t = localStorage.getItem('ceres-theme') || 'dark';
+            document.body.className = 'theme-' + t;
+            // Remove the temporary guard style now that body class is set
+            var guard = document.getElementById('_theme_guard');
+            if (guard) guard.remove();
+        })();
+    </script>
+
+    <!-- Sidebar Overlay (mobile only) -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Toggle Menu Button (positioned overlaying sidebar and header) -->
+    <button class="menu-btn" id="menuBtn" aria-label="Toggle Sidebar">
+        <span></span><span></span><span></span>
+    </button>
+
+    <!-- ═══ APP SHELL ════════════════════════════════════════════════ -->
+    <div class="app-shell">
+
+        <!-- Persistent Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-brand">
+                <div class="sidebar-brand-icon">
+                    <i class="fa-solid fa-water"></i>
+                </div>
+                <div class="sidebar-brand-text">
+                    <div class="sidebar-brand-title">CERES</div>
+                    <div class="sidebar-brand-subtitle">Vessel {{ vessel_id }}</div>
+                </div>
+            </div>
+
+            <ul class="sidebar-nav">
+                <li class="sidebar-section-label">NAVIGATION</li>
+                <li class="{% if active_page == 'dashboard' %}active{% endif %}">
+                    <a href="/">
+                        <i class="fa-solid fa-chart-line nav-icon"></i>
+                        Dashboard
+                    </a>
+                </li>
+                <li class="{% if active_page == 'devices' %}active{% endif %}">
+                    <a href="/devices">
+                        <i class="fa-solid fa-microchip nav-icon"></i>
+                        Devices & Comms
+                    </a>
+                </li>
+                <li class="{% if active_page == 'data' %}active{% endif %}">
+                    <a href="/data">
+                        <i class="fa-solid fa-database nav-icon"></i>
+                        Data & Telemetry
+                    </a>
+                </li>
+                <li class="sidebar-section-label">CONFIGURATION</li>
+                <li class="{% if active_page == 'calibrate' %}active{% endif %}">
+                    <a href="/calibrate">
+                        <i class="fa-solid fa-sliders nav-icon"></i>
+                        Calibrate Sensors
+                    </a>
+                </li>
+                <li class="{% if active_page == 'settings' %}active{% endif %}">
+                    <a href="/settings">
+                        <i class="fa-solid fa-gear nav-icon"></i>
+                        Settings
+                    </a>
+                </li>
+                <li class="sidebar-section-label">INFORMATION</li>
+                <li class="{% if active_page == 'about' %}active{% endif %}">
+                    <a href="/about">
+                        <i class="fa-solid fa-circle-info nav-icon"></i>
+                        About Us
+                    </a>
+                </li>
+            </ul>
+
+            <div class="sidebar-footer">
+                {% if logged_in_user %}
+                <div class="sidebar-user-info" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 4px;">
+                    <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-user-shield" style="color: var(--primary); font-size: 0.85rem;"></i>
+                        <span>{{ logged_in_user }}</span>
+                    </div>
+                    <div style="font-size: 0.72rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-building-flag" style="color: var(--accent-blue); font-size: 0.8rem;"></i>
+                        <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;" title="{{ logged_in_office }}">{{ logged_in_office }}</span>
+                    </div>
+                    <div style="margin-top: 4px; display: flex;">
+                        <a href="/logout" style="color: #ef4444; text-decoration: none; font-size: 0.72rem; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; transition: opacity 0.2s;" onmouseover="this.style.opacity=0.8" onmouseout="this.style.opacity=1">
+                            <i class="fa-solid fa-right-from-bracket"></i> Logout
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+                <div class="sidebar-shutdown-container" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color);">
+                    <button class="cyber-btn" id="btnSystemShutdown" style="width: 100%; justify-content: center; background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.3); color: #f87171; font-weight: 700; font-size: 0.72rem; padding: 6px 10px; transition: all 0.2s ease;">
+                        <i class="fa-solid fa-power-off"></i> Shut Off Console
+                    </button>
+                </div>
+                <div class="sidebar-footer-status">
+                    <div class="sidebar-footer-dot" id="sidebarStatusDot"></div>
+                    <span id="sidebarStatusText">System Online</span>
+                </div>
+                <div class="sidebar-footer-version">Ceres v{{ version }}</div>
+            </div>
+        </aside>
+
+        <!-- Main Content Column -->
+        <div class="content-area">
+
+            <!-- Top Header -->
+            <header>
+
+                <div class="header-page-info">
+                    <div class="header-page-title">{% block page_title %}Dashboard{% endblock %}</div>
+                    <div class="header-page-subtitle">{% block page_subtitle %}Precision Aquaculture Management{% endblock %}</div>
+                </div>
+
+                <div class="header-right">
+                    <!-- Live Console Clock -->
+                    <div class="header-clock" id="headerClock">
+                        <i class="fa-regular fa-clock"></i>
+                        <span id="headerLiveTime">--:--:--</span>
+                    </div>
+
+                    <span class="status-badge optimal" id="telemetryStatusBadge">
+                        <i class="fa-solid fa-wifi"></i>&nbsp;WI-FI LINK
+                    </span>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <main class="main-wrapper">
+                {% block content %}{% endblock %}
+            </main>
+
+        </div><!-- /content-area -->
+    </div><!-- /app-shell -->
+
+    <!-- JS Dependencies -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <script src="/static/js/segmentation.js?v=1.0.0"></script>
+    <script src="/static/js/main.js?v=1.0.9"></script>
+
+    {% block extra_js %}{% endblock %}
+
+    <!-- ── Fullscreen Shutdown Overlay ─────────────────────────────────── -->
+    <div id="shutdownOverlay" style="display:none; position:fixed; inset:0; z-index:99999; background:#0b1120; flex-direction:column; align-items:center; justify-content:center; color:#fff; text-align:center; font-family:'Inter', sans-serif; padding:20px;">
+        <style>
+            @keyframes pulse-red-glow {
+                0%, 100% { transform: scale(1); opacity: 0.9; filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.2)); }
+                50% { transform: scale(1.08); opacity: 1; filter: drop-shadow(0 0 16px rgba(239, 68, 68, 0.7)); }
+            }
+            @keyframes toast-slide-up {
+                from { transform: translateY(90px); opacity: 0; }
+                to   { transform: translateY(0);    opacity: 1; }
+            }
+            @keyframes toast-slide-down {
+                from { transform: translateY(0);    opacity: 1; }
+                to   { transform: translateY(90px); opacity: 0; }
+            }
+            .shutdown-toast-out { animation: toast-slide-down 0.28s cubic-bezier(0.4,0,1,1) forwards !important; }
+        </style>
+        <div style="background:#0f172a; border:1px solid #334155; border-radius:12px; padding:40px; box-shadow:0 20px 50px rgba(0,0,0,0.6); max-width:480px; display:flex; flex-direction:column; align-items:center; gap:16px;">
+            <i class="fa-solid fa-power-off" style="font-size:3.5rem; color:#ef4444; animation: pulse-red-glow 2s infinite ease-in-out;"></i>
+            <h1 style="color:#ef4444; font-size:1.6rem; font-weight:800; text-transform:uppercase; letter-spacing:1px; margin:0;">System Terminated</h1>
+            <p style="color:#94a3b8; font-size:0.95rem; line-height:1.6; margin:0;">The Ceres server has been shut off. Telemetry streams disconnected. This window will close automatically.</p>
+            <div style="font-size:0.75rem; color:#475569; font-family:monospace; margin-top:8px;">STATUS CODE: 0x00 (NORMAL_EXIT)</div>
+        </div>
+    </div>
+
+    <!-- ── Shutdown Confirmation Toast ───────────────────────────────────── -->
+    <div id="shutdownToast" style="
+        display: none;
+        position: fixed; bottom: 0; left: 0; right: 0;
+        z-index: 99998;
+        justify-content: center;
+        padding: 0 20px 24px;
+        pointer-events: none;
+    ">
+        <div id="shutdownToastCard" style="
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-top: 1px solid rgba(239,68,68,0.25);
+            border-radius: 12px;
+            padding: 18px 22px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            max-width: 540px;
+            width: 100%;
+            box-shadow: 0 -8px 40px rgba(0,0,0,0.55), 0 0 0 1px rgba(239,68,68,0.08);
+            pointer-events: all;
+            animation: toast-slide-up 0.36s cubic-bezier(0.34,1.56,0.64,1) both;
+        ">
+            <!-- Icon -->
+            <div style="flex-shrink:0; width:38px; height:38px; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); border-radius:50%; display:flex; align-items:center; justify-content:center;">
+                <i class="fa-solid fa-power-off" style="color:#f87171; font-size:0.9rem;"></i>
+            </div>
+            <!-- Text -->
+            <div style="flex:1; min-width:0;">
+                <div style="font-size:0.88rem; font-weight:700; color:#f1f5f9; letter-spacing:0.01em;">Terminate System?</div>
+                <div style="font-size:0.74rem; color:#64748b; margin-top:2px; line-height:1.4;">The CERES server will shut down and this window will close.</div>
+            </div>
+            <!-- Actions -->
+            <div style="display:flex; gap:8px; flex-shrink:0;">
+                <button id="btnShutdownCancel"
+                    style="padding:8px 16px; background:rgba(255,255,255,0.04); border:1px solid #334155; border-radius:6px; color:#94a3b8; font-size:0.76rem; font-weight:600; cursor:pointer; font-family:inherit; transition:all 0.15s ease;"
+                    onmouseover="this.style.background='rgba(255,255,255,0.08)';this.style.color='#cbd5e1'"
+                    onmouseout="this.style.background='rgba(255,255,255,0.04)';this.style.color='#94a3b8'"
+                >Cancel</button>
+                <button id="btnShutdownConfirm"
+                    style="padding:8px 16px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); border-radius:6px; color:#f87171; font-size:0.76rem; font-weight:700; cursor:pointer; font-family:inherit; transition:all 0.15s ease;"
+                    onmouseover="this.style.background='rgba(239,68,68,0.22)';this.style.borderColor='rgba(239,68,68,0.5)'"
+                    onmouseout="this.style.background='rgba(239,68,68,0.12)';this.style.borderColor='rgba(239,68,68,0.3)'"
+                >Shut Down</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        const toast    = document.getElementById('shutdownToast');
+        const toastCard= document.getElementById('shutdownToastCard');
+        const btnOpen  = document.getElementById('btnSystemShutdown');
+        const btnCancel= document.getElementById('btnShutdownCancel');
+        const btnConfirm = document.getElementById('btnShutdownConfirm');
+        const overlay  = document.getElementById('shutdownOverlay');
+
+        function showToast() {
+            if (!toast) return;
+            toastCard.classList.remove('shutdown-toast-out');
+            toast.style.display = 'flex';
+            // Force reflow so animation restarts cleanly
+            void toastCard.offsetWidth;
+            toastCard.style.animation = 'toast-slide-up 0.36s cubic-bezier(0.34,1.56,0.64,1) both';
+        }
+
+        function hideToast(cb) {
+            if (!toast) { if (cb) cb(); return; }
+            toastCard.classList.add('shutdown-toast-out');
+            setTimeout(() => {
+                toast.style.display = 'none';
+                toastCard.classList.remove('shutdown-toast-out');
+                if (cb) cb();
+            }, 300);
+        }
+
+        async function executeShutdown() {
+            // Set a unique title so the backend can target and close this window
+            document.title = 'CERES_OS_TERMINATING_NOW';
+
+            // Show fullscreen termination screen
+            if (overlay) overlay.style.display = 'flex';
+            try {
+                await fetch('/api/system/shutdown', { method: 'POST' });
+            } catch (_) {
+                // Server already stopped — that's fine
+            }
+            // Attempt to close the window (works when opened via script/launcher)
+            setTimeout(() => { try { window.close(); } catch (_) {} }, 2500);
+        }
+
+        btnOpen?.addEventListener('click', showToast);
+        btnCancel?.addEventListener('click', () => hideToast());
+        btnConfirm?.addEventListener('click', () => hideToast(executeShutdown));
+
+        // Pressing Escape closes the toast
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && toast && toast.style.display === 'flex') hideToast();
+        });
+    })();
+    </script>
+</body>
+</html>
+

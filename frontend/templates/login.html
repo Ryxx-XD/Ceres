@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | CERES</title>
+    <link rel="stylesheet" href="/static/css/style.css?v=1.0.9">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Anti-flash theme guard (runs before first paint) -->
+    <script>
+    (function () {
+        var t = localStorage.getItem('ceres-theme') || 'dark';
+        if (t === 'dark') {
+            document.write('<style id="_theme_guard">html,body{background-color:#090d16!important;color:#f1f5f9!important;}</style>');
+        }
+        document.documentElement.className = 'theme-' + t;
+    })();
+    </script>
+    <script>
+        // Kiosk mode launcher - open in a separate window and lock to fullscreen
+        (function() {
+            if (window.name !== 'ceres_kiosk' && !window.location.search.includes('no_kiosk')) {
+                const w = screen.availWidth;
+                const h = screen.availHeight;
+                const kioskWin = window.open(window.location.href, 'ceres_kiosk', `width=${w},height=${h},top=0,left=0,fullscreen=yes,scrollbars=yes,status=no,toolbar=no,menubar=no,location=no`);
+                if (kioskWin) {
+                    document.write(`
+                        <html lang="en">
+                        <head>
+                            <meta charset="UTF-8">
+                            <title>Ceres Launcher</title>
+                            <link rel="stylesheet" href="/static/css/style.css?v=1.0.9">
+                            <style>
+                                body { display: flex; align-items: center; justify-content: center; height: 100vh; background: #0b1120; font-family: 'Inter', sans-serif; text-align: center; }
+                                .launcher-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 40px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); max-width: 480px; }
+                                h1 { color: #10b981; font-size: 1.5rem; margin-bottom: 12px; font-weight: 800; }
+                                p { color: #94a3b8; font-size: 0.95rem; line-height: 1.6; margin-bottom: 24px; }
+                                .btn-launch { padding: 12px 24px; background: #10b981; border: none; color: white; border-radius: 6px; font-weight: 700; cursor: pointer; transition: background 0.2s; font-size: 0.9rem; }
+                                .btn-launch:hover { background: #059669; }
+                            </style>
+                        </head>
+                        <body class="theme-dark">
+                            <div class="launcher-card">
+                                <h1>CERES LAUNCHED</h1>
+                                <p>The console has been opened in a separate, dedicated kiosk window. You may close this tab, or click below to focus/re-launch it.</p>
+                                <button class="btn-launch" onclick="window.open('${window.location.pathname + window.location.search}', 'ceres_kiosk')">Re-launch Console</button>
+                            </div>
+                        </body>
+                        </html>
+                    `);
+                    document.close();
+                    window.stop();
+                }
+            }
+
+            // If we are in the top-level of the kiosk window, render the fullscreen lock shell
+            if (window.name === 'ceres_kiosk' && window.self === window.top) {
+                document.write(`
+                    <html lang="en">
+                    <head>
+                        <meta charset="UTF-8">
+                        <title>Ceres Console Shell</title>
+                        <link rel="stylesheet" href="/static/css/style.css?v=1.0.9">
+                        <style>
+                            body { margin: 0; padding: 0; height: 100vh; background: #0b1120; font-family: 'Inter', sans-serif; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+                            .shell-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 40px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); max-width: 480px; text-align: center; }
+                            h1 { color: #10b981; font-size: 1.5rem; margin-bottom: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+                            p { color: #94a3b8; font-size: 0.95rem; line-height: 1.6; margin-bottom: 24px; }
+                            .btn-enter { padding: 12px 24px; background: #10b981; border: none; color: white; border-radius: 6px; font-weight: 700; cursor: pointer; transition: background 0.2s; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; }
+                            .btn-enter:hover { background: #059669; }
+                            iframe { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; border: none; z-index: 9999; }
+                        </style>
+                    </head>
+                    <body class="theme-dark">
+                        <div class="shell-card" id="shellCard">
+                            <h1>Ceres Console</h1>
+                            <p>System is ready. Press below to lock the interface into fullscreen kiosk mode and start the telemetry console.</p>
+                            <button class="btn-enter" id="btnEnterShell">Lock & Initialize Console</button>
+                        </div>
+                        <iframe id="kioskIframe" src="${window.location.href}" allow="fullscreen"></iframe>
+                        
+                        <script>
+                            const btn = document.getElementById('btnEnterShell');
+                            const card = document.getElementById('shellCard');
+                            const iframe = document.getElementById('kioskIframe');
+                            
+                            function lockAndStart() {
+                                if (!document.fullscreenElement) {
+                                    document.documentElement.requestFullscreen()
+                                        .then(() => {
+                                            card.style.display = 'none';
+                                            iframe.style.display = 'block';
+                                        })
+                                        .catch(err => {
+                                            console.warn("Fullscreen request failed:", err);
+                                            card.style.display = 'none';
+                                            iframe.style.display = 'block';
+                                        });
+                                } else {
+                                    card.style.display = 'none';
+                                    iframe.style.display = 'block';
+                                }
+                            }
+                            
+                            btn.addEventListener('click', lockAndStart);
+                            
+                            document.addEventListener('fullscreenchange', () => {
+                                if (!document.fullscreenElement) {
+                                    card.style.display = 'block';
+                                    iframe.style.display = 'none';
+                                }
+                            });
+                        <\/script>
+                    </body>
+                    </html>
+                `);
+                document.close();
+                window.stop();
+            }
+        })();
+    </script>
+    <style>
+        /* Custom styling to override variables and center card */
+        :root {
+            --primary: #10b981;
+            --primary-hover: #059669;
+            --primary-glow: rgba(16, 185, 129, 0.25);
+            --accent-blue: #38bdf8;
+        }
+
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: var(--font-sans);
+            overflow: hidden;
+            background: transparent;
+        }
+
+        #login-particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            background: linear-gradient(135deg, #090d16 0%, #0b1120 50%, #061d12 100%);
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 820px;
+            padding: 24px;
+            perspective: 1000px;
+        }
+
+        .login-card {
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 36px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .login-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--accent-blue));
+        }
+
+        .login-split {
+            display: grid;
+            grid-template-columns: 1.25fr auto 1fr;
+            gap: 32px;
+            align-items: stretch;
+        }
+
+        .login-divider-v {
+            width: 1px;
+            background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.08) 20%, rgba(255, 255, 255, 0.08) 80%, transparent);
+            align-self: stretch;
+        }
+
+        @media (max-width: 768px) {
+            .login-split {
+                grid-template-columns: 1fr;
+                gap: 28px;
+            }
+            .login-container {
+                max-width: 460px;
+            }
+            .login-divider-v {
+                display: none;
+            }
+        }
+
+        .login-logo {
+            text-align: left;
+            margin-bottom: 22px;
+        }
+
+        .login-logo-icon {
+            font-size: 2.2rem;
+            color: var(--primary);
+            margin-bottom: 8px;
+            display: inline-block;
+            animation: pulse-glow 2.5s infinite ease-in-out;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { transform: scale(1); opacity: 0.9; filter: drop-shadow(0 0 2px rgba(16, 185, 129, 0.2)); }
+            50% { transform: scale(1.06); opacity: 1; filter: drop-shadow(0 0 8px var(--primary)); }
+        }
+
+        .login-title {
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: 0.5px;
+            margin: 0;
+            text-transform: uppercase;
+        }
+
+        .login-subtitle {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+            position: relative;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            transition: color 0.2s ease;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px 12px 10px 36px;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-color);
+            color: #ffffff;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+            background: rgba(0, 0, 0, 0.35);
+        }
+
+        .form-control:focus + .input-icon {
+            color: var(--primary);
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 11px;
+            border: none;
+            border-radius: 6px;
+            background: var(--primary);
+            color: #fff;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+        }
+
+        .btn-submit:hover {
+            background: var(--primary-hover);
+            box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .toggle-mode {
+            text-align: center;
+            margin-top: 14px;
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+        }
+
+        .toggle-link {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 700;
+            cursor: pointer;
+            margin-left: 4px;
+        }
+
+        .toggle-link:hover {
+            text-decoration: underline;
+        }
+
+        .alert-box {
+            display: none;
+            padding: 10px 12px;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            margin-bottom: 16px;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #f87171;
+        }
+
+        .alert-success {
+            background: rgba(16, 185, 129, 0.12);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: #34d399;
+        }
+
+        /* Slide animations */
+        .register-only {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            margin-bottom: 0;
+        }
+
+        .register-only.active {
+            max-height: 80px;
+            opacity: 1;
+            margin-bottom: 16px;
+        }
+
+        /* Profiles Side list */
+        .profiles-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 8px;
+            max-height: 290px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        /* Scrollbar tweaks for profiles list */
+        .profiles-list::-webkit-scrollbar {
+            width: 4px;
+        }
+        .profiles-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .profiles-list::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+        }
+
+        .profile-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 8px;
+            padding: 10px 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        .profile-card:hover {
+            background: rgba(255, 255, 255, 0.07);
+            border-color: rgba(16, 185, 129, 0.35);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.1);
+        }
+
+        .profile-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.78rem;
+            font-weight: 700;
+            flex-shrink: 0;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+
+        .profile-info {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .profile-name {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #f1f5f9;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .profile-office {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .profile-delete-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all 0.15s ease;
+            opacity: 0.4;
+            z-index: 10;
+        }
+
+        .profile-delete-btn:hover {
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+            opacity: 1;
+        }
+
+        .login-buttons-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 6px;
+        }
+
+        .btn-exit {
+            flex: 1;
+            padding: 11px;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 6px;
+            background: rgba(239, 68, 68, 0.08);
+            color: #f87171;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-exit:hover {
+            background: rgba(239, 68, 68, 0.22);
+            border-color: rgba(239, 68, 68, 0.5);
+            color: #ef4444;
+            box-shadow: 0 4px 16px rgba(239, 68, 68, 0.25);
+            transform: translateY(-1px);
+        }
+
+        .btn-submit {
+            flex: 2;
+        }
+    </style>
+</head>
+<body class="theme-dark">
+    <!-- Sync body class + remove temp guard -->
+    <script>
+        (function() {
+            var t = localStorage.getItem('ceres-theme') || 'dark';
+            document.body.className = 'theme-' + t;
+            var guard = document.getElementById('_theme_guard');
+            if (guard) guard.remove();
+        })();
+    </script>
+
+    <canvas id="login-particles"></canvas>
+
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-split">
+                <!-- Left Side: Form -->
+                <div class="login-form-side">
+                    <div class="login-logo">
+                        <div class="login-logo-icon">
+                            <i class="fa-solid fa-water"></i>
+                        </div>
+                        <h1 class="login-title" id="cardTitle">Ceres System Console</h1>
+                        <p class="login-subtitle" id="cardSubtitle">Precision Aquaculture Telemetry & Control</p>
+                    </div>
+
+                    <!-- Custom Cyber Alert Box -->
+                    <div class="alert-box alert-error" id="alertBox">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <span id="alertMessage">Error message here</span>
+                    </div>
+
+                    <form id="loginForm">
+                        <div class="form-group">
+                            <label class="form-label">Username</label>
+                            <div class="input-wrapper">
+                                <input type="text" id="username" class="form-control" placeholder="Enter username" required autocomplete="username">
+                                <i class="fa-solid fa-user input-icon"></i>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Password</label>
+                            <div class="input-wrapper">
+                                <input type="password" id="password" class="form-control" placeholder="Enter password" required autocomplete="current-password">
+                                <i class="fa-solid fa-lock input-icon"></i>
+                            </div>
+                        </div>
+
+                        <!-- Registration-only field for Office -->
+                        <div class="form-group register-only" id="officeField">
+                            <label class="form-label">Office</label>
+                            <div class="input-wrapper">
+                                <input type="text" id="office" class="form-control" placeholder="e.g. Cebu City Office" autocomplete="organization">
+                                <i class="fa-solid fa-building-flag input-icon"></i>
+                            </div>
+                        </div>
+
+                        <!-- Save Profile Checkbox -->
+                        <div id="saveProfileContainer" style="display: flex; align-items: center; gap: 8px; margin-bottom: 18px;">
+                            <input type="checkbox" id="saveProfile" style="accent-color: var(--primary); cursor: pointer; width: 14px; height: 14px; border-radius: 4px;" checked>
+                            <label for="saveProfile" style="font-size: 0.72rem; color: var(--text-secondary); cursor: pointer; user-select: none; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px;">Remember operator profile</label>
+                        </div>
+
+                        <div class="login-buttons-row">
+                            <button type="submit" class="btn-submit" id="btnSubmit">
+                                <i class="fa-solid fa-right-to-bracket"></i>
+                                <span id="btnText">Sign In</span>
+                            </button>
+                            <button type="button" class="btn-exit" id="btnExit" title="Exit application and shutdown server">
+                                <i class="fa-solid fa-power-off"></i>
+                                <span>Exit</span>
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="toggle-mode">
+                        <span id="toggleQuestion">New operator?</span>
+                        <span class="toggle-link" id="toggleLink">Register Console</span>
+                    </div>
+                </div>
+
+                <!-- Vertical Divider -->
+                <div class="login-divider-v"></div>
+
+                <!-- Right Side: Saved Operator Profiles -->
+                <div class="login-profiles-side" style="display: flex; flex-direction: column;">
+                    <div style="font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-circle-user" style="color: var(--primary); font-size: 0.88rem;"></i> Saved Operator Profiles
+                    </div>
+                    <div style="font-size: 0.68rem; color: var(--text-muted); line-height: 1.35; margin-bottom: 16px;">
+                        Select a saved local operator profile below to instantly gain system access.
+                    </div>
+                    <div class="profiles-list" id="savedProfilesList">
+                        <!-- Loaded dynamically from localStorage -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Particle Background Animation
+        (function() {
+            const canvas = document.getElementById('login-particles');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            
+            let width = canvas.width = window.innerWidth;
+            let height = canvas.height = window.innerHeight;
+            
+            const particles = [];
+            const count = 45;
+            const maxDist = 120;
+            
+            window.addEventListener('resize', () => {
+                width = canvas.width = window.innerWidth;
+                height = canvas.height = window.innerHeight;
+            });
+            
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: Math.random() * width,
+                    y: Math.random() * height,
+                    vx: (Math.random() - 0.5) * 0.4,
+                    vy: (Math.random() - 0.5) * 0.4,
+                    r: Math.random() * 2 + 1,
+                    color: Math.random() > 0.5 ? '#10b981' : '#38bdf8'
+                });
+            }
+            
+            let mouse = { x: -1000, y: -1000 };
+            window.addEventListener('mousemove', (e) => {
+                mouse.x = e.clientX;
+                mouse.y = e.clientY;
+            });
+            window.addEventListener('mouseleave', () => {
+                mouse.x = -1000;
+                mouse.y = -1000;
+            });
+            
+            function animate() {
+                ctx.clearRect(0, 0, width, height);
+                
+                // Draw connecting lines
+                for (let i = 0; i < count; i++) {
+                    const p1 = particles[i];
+                    for (let j = i + 1; j < count; j++) {
+                        const p2 = particles[j];
+                        const dx = p1.x - p2.x;
+                        const dy = p1.y - p2.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (dist < maxDist) {
+                            const alpha = (1 - dist / maxDist) * 0.12;
+                            ctx.strokeStyle = `rgba(148, 163, 184, ${alpha})`;
+                            ctx.lineWidth = 0.8;
+                            ctx.beginPath();
+                            ctx.moveTo(p1.x, p1.y);
+                            ctx.lineTo(p2.x, p2.y);
+                            ctx.stroke();
+                        }
+                    }
+                    
+                    // Draw line to mouse
+                    const dxMouse = p1.x - mouse.x;
+                    const dyMouse = p1.y - mouse.y;
+                    const distMouse = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
+                    if (distMouse < maxDist * 1.5) {
+                        const alpha = (1 - distMouse / (maxDist * 1.5)) * 0.22;
+                        ctx.strokeStyle = `rgba(16, 185, 129, ${alpha})`;
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.moveTo(p1.x, p1.y);
+                        ctx.lineTo(mouse.x, mouse.y);
+                        ctx.stroke();
+                    }
+                }
+                
+                // Update and draw particles
+                for (let i = 0; i < count; i++) {
+                    const p = particles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    
+                    if (p.x < 0 || p.x > width) p.vx *= -1;
+                    if (p.y < 0 || p.y > height) p.vy *= -1;
+                    
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                requestAnimationFrame(animate);
+            }
+            
+            animate();
+        })();
+
+        // Saved operator profiles handlers
+        function getAvatarColor(username) {
+            const colors = [
+                ['#10b981', '#059669'], // Emerald Green
+                ['#38bdf8', '#0284c7'], // Sky Blue
+                ['#f59e0b', '#d97706'], // Amber
+                ['#8b5cf6', '#6d28d9'], // Violet
+                ['#ec4899', '#be185d']  // Pink
+            ];
+            let hash = 0;
+            for (let i = 0; i < username.length; i++) {
+                hash = username.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const index = Math.abs(hash) % colors.length;
+            return colors[index];
+        }
+
+        function loadSavedProfiles() {
+            const list = document.getElementById('savedProfilesList');
+            if (!list) return;
+            const profiles = JSON.parse(localStorage.getItem('ceres_saved_profiles') || '[]');
+            
+            if (profiles.length === 0) {
+                list.innerHTML = `
+                    <div style="text-align:center; padding:40px 10px; color:var(--text-muted); font-size:0.78rem; display:flex; flex-direction:column; align-items:center; gap:10px;">
+                        <i class="fa-solid fa-user-lock" style="font-size:1.5rem; opacity:0.3;"></i>
+                        <span>No saved profiles on this console.</span>
+                    </div>
+                `;
+                return;
+            }
+            
+            list.innerHTML = profiles.map((p, idx) => {
+                const colorPair = getAvatarColor(p.username);
+                const initials = p.username.substring(0, 2).toUpperCase();
+                return `
+                    <div class="profile-card" onclick="instantLogin(${idx})" title="Log in instantly as ${p.username}">
+                        <div class="profile-avatar" style="background: linear-gradient(135deg, ${colorPair[0]}, ${colorPair[1]});">
+                            ${initials}
+                        </div>
+                        <div class="profile-info">
+                            <span class="profile-name">${p.username}</span>
+                            <span class="profile-office"><i class="fa-solid fa-building-flag" style="font-size:0.7rem; color:var(--primary);"></i> ${p.office || 'General HQ'}</span>
+                        </div>
+                        <button class="profile-delete-btn" onclick="event.stopPropagation(); deleteProfile(${idx})" title="Remove profile from this device">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        window.deleteProfile = function(idx) {
+            const profiles = JSON.parse(localStorage.getItem('ceres_saved_profiles') || '[]');
+            profiles.splice(idx, 1);
+            localStorage.setItem('ceres_saved_profiles', JSON.stringify(profiles));
+            loadSavedProfiles();
+        };
+
+        window.instantLogin = async function(idx) {
+            const profiles = JSON.parse(localStorage.getItem('ceres_saved_profiles') || '[]');
+            const p = profiles[idx];
+            if (!p) return;
+            
+            document.getElementById('username').value = p.username;
+            document.getElementById('password').value = p.password;
+            if (p.office) {
+                document.getElementById('office').value = p.office;
+            }
+            
+            // Set checkbox checked to keep it saved/refresh credentials
+            document.getElementById('saveProfile').checked = true;
+            
+            // Trigger login submit
+            form.dispatchEvent(new Event('submit'));
+        };
+
+        function saveProfileLocally(username, password, office) {
+            let profiles = JSON.parse(localStorage.getItem('ceres_saved_profiles') || '[]');
+            profiles = profiles.filter(p => p.username.toLowerCase() !== username.toLowerCase());
+            profiles.unshift({ username, password, office });
+            if (profiles.length > 5) profiles.pop(); // Max 5 saved profiles
+            localStorage.setItem('ceres_saved_profiles', JSON.stringify(profiles));
+        }
+
+        // Initialize saved profiles on page load
+        document.addEventListener('DOMContentLoaded', loadSavedProfiles);
+
+
+        // Form controller
+        const form = document.getElementById('loginForm');
+        const cardTitle = document.getElementById('cardTitle');
+        const cardSubtitle = document.getElementById('cardSubtitle');
+        const officeField = document.getElementById('officeField');
+        const officeInput = document.getElementById('office');
+        const btnSubmit = document.getElementById('btnSubmit');
+        const btnText = document.getElementById('btnText');
+        const toggleQuestion = document.getElementById('toggleQuestion');
+        const toggleLink = document.getElementById('toggleLink');
+        const alertBox = document.getElementById('alertBox');
+        const alertMessage = document.getElementById('alertMessage');
+
+        let currentAction = 'login'; // 'login' or 'register'
+
+        toggleLink.addEventListener('click', () => {
+            alertBox.style.display = 'none';
+            if (currentAction === 'login') {
+                currentAction = 'register';
+                cardTitle.textContent = 'Register Console';
+                cardSubtitle.textContent = 'Register operator credentials & office';
+                officeField.classList.add('active');
+                officeInput.setAttribute('required', 'true');
+                btnText.textContent = 'Register & Enter';
+                btnSubmit.querySelector('i').className = 'fa-solid fa-user-plus';
+                toggleQuestion.textContent = 'Already registered?';
+                toggleLink.textContent = 'Sign In';
+            } else {
+                currentAction = 'login';
+                cardTitle.textContent = 'Ceres System Console';
+                cardSubtitle.textContent = 'Precision Aquaculture Telemetry & Control';
+                officeField.classList.remove('active');
+                officeInput.removeAttribute('required');
+                btnText.textContent = 'Sign In';
+                btnSubmit.querySelector('i').className = 'fa-solid fa-right-to-bracket';
+                toggleQuestion.textContent = 'New operator?';
+                toggleLink.textContent = 'Register Console';
+            }
+        });
+        const btnExit = document.getElementById('btnExit');
+        if (btnExit) {
+            btnExit.addEventListener('click', async () => {
+                btnExit.disabled = true;
+                btnExit.style.opacity = '0.5';
+                document.title = 'CERES_OS_TERMINATING_NOW';
+                // Show termination message on login screen
+                alertBox.className = 'alert-box alert-error';
+                alertBox.style.display = 'flex';
+                alertMessage.innerHTML = '<i class="fa-solid fa-power-off"></i> System Terminated. Window closing...';
+                
+                try {
+                    await fetch('/api/system/shutdown', { method: 'POST' });
+                } catch (e) {}
+                setTimeout(() => { try { window.close(); } catch (_) {} }, 2500);
+            });
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            alertBox.style.display = 'none';
+
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const office = officeInput.value.trim();
+
+            if (currentAction === 'register' && !office) {
+                showError('Office registration is required.');
+                return;
+            }
+
+            btnSubmit.disabled = true;
+            btnSubmit.style.opacity = '0.7';
+
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username,
+                        password,
+                        office,
+                        action: currentAction
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showError(data.error || 'An unexpected error occurred.');
+                    btnSubmit.disabled = false;
+                    btnSubmit.style.opacity = '1';
+                } else {
+                    // Save locally if requested
+                    if (document.getElementById('saveProfile').checked) {
+                        saveProfileLocally(username, password, office || data.office || 'General HQ');
+                    }
+                    
+                    // Success, redirect to dashboard
+                    alertBox.className = 'alert-box alert-success';
+                    alertBox.style.display = 'flex';
+                    alertMessage.innerHTML = '<i class="fa-solid fa-circle-check"></i> ' + (currentAction === 'register' ? 'Registration successful! Redirecting...' : 'Access granted! Loading console...');
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 800);
+                }
+            } catch (err) {
+                showError('Server connection failed. Please try again.');
+                btnSubmit.disabled = false;
+                btnSubmit.style.opacity = '1';
+            }
+        });
+
+        function showError(msg) {
+            alertBox.className = 'alert-box alert-error';
+            alertBox.style.display = 'flex';
+            alertMessage.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> ' + msg;
+        }
+    </script>
+</body>
+</html>

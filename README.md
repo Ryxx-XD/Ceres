@@ -15,6 +15,7 @@
 ## Author & Agency Recognition
 
 **Lead Developer:** Edgar Joerenz B. Pondales - Robotics Engineering
+
 **Lead Researcher:** Jhairra Vel J. Lopez - Science, Technology, and Engineering
 
 **Recognized by Agencies:**

@@ -1,4 +1,4 @@
-# CERES — Autonomous Aquaculture Monitoring Platform
+# CERES — An AIoT-GNC ROBOTICS System for Tilapia (Oreochromis niloticus) Mortality Mitigation
 
 [![System Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](CeresLinux/hardware/src/config.h)
 [![Python FastAPI](https://img.shields.io/badge/Backend-FastAPI-green.svg)](CeresLinux/backend)
